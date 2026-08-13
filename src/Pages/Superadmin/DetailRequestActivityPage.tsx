@@ -1,21 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../Libs/axios';
 
 // ⭐ Import รูปภาพ Facebook และ Line จาก assets
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
-export default function DetailActivityPage() {
+export default function DetailRequestActivityPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // State สำหรับมีเดียหลักที่แสดงอยู่ (สลับเมื่อคลิก Thumbnail)
+  // State สำหรับมีเดียหลักที่แสดงอยู่
   const [activeImage, setActiveImage] = useState<string>('');
-
-  // State สำหรับเปิด Modal ดูรูปใหญ่
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ================= Modal States =================
+  type ModalStateType = 'none' | 'confirmApprove' | 'successApprove' | 'rejectReason' | 'confirmReject' | 'successReject';
+  const [modalState, setModalState] = useState<ModalStateType>('none');
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   const BACKEND_URL = 'http://localhost:3000'; 
   
@@ -31,26 +36,24 @@ export default function DetailActivityPage() {
     return `${BACKEND_URL}/${cleanPath.replace(/^\//, '')}`;
   };
 
-  // ⭐ ฟังก์ชันเช็คไฟล์วิดีโอ
   const isVideoFile = (path: string) => {
     if (!path) return false;
-    const cleanPath = path.split('?')[0]; // เผื่อมี Query String ติดมา
+    const cleanPath = path.split('?')[0];
     return cleanPath.match(/\.(mp4|mov|m4v|webm)$/i) !== null;
   };
 
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const response = await api.get(`/superadmin/activity/${id}`);
+        // ยิง API ดึงรายละเอียดกิจกรรมที่รออนุมัติ
+        const response = await api.get(`/superadmin/activity-requests/${id}`);
         const activityData = response.data.data || response.data;
         setData(activityData);
 
-        // ตั้งค่ารูป/วิดีโอปกเริ่มต้นเมื่อโหลดข้อมูลเสร็จ
         const cover = activityData.activityFile?.find((f: any) => f.type === 'COVER')?.filePath;
         if (cover) {
           setActiveImage(cover);
         } else {
-          // ถ้าไม่มี Cover ให้ดึง Gallery หรือ Video ตัวแรกมาแสดงแทน
           const firstMedia = activityData.activityFile?.filter((f: any) => f.type === 'GALLERY' || f.type === 'VIDEO')?.[0]?.filePath;
           if (firstMedia) setActiveImage(firstMedia);
         }
@@ -63,6 +66,49 @@ export default function DetailActivityPage() {
     };
     if (id) fetchDetail(); else setLoading(false);
   }, [id]);
+
+  // ================= Handlers อนุมัติ / ปฏิเสธ =================
+  const handleApprove = async () => {
+    if (!id) return;
+    setIsProcessing(true);
+    try {
+      await api.patch(`/superadmin/activity-requests/${id}/approve`);
+      setModalState('successApprove');
+    } catch (err: any) {
+      alert(`เกิดข้อผิดพลาด: ${err.response?.data?.message || err.message}`);
+      setModalState('none');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!id) return;
+    setIsProcessing(true);
+    try {
+      await api.patch(`/superadmin/activity-requests/${id}/reject`, {
+        reason: rejectReason
+      });
+      setModalState('successReject');
+    } catch (err: any) {
+      alert(`เกิดข้อผิดพลาด: ${err.response?.data?.message || err.message}`);
+      setModalState('none');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ⭐ เพิ่มฟังก์ชันแปลงวันที่แบบช่วง (Range)
+  const formatDateRange = (startStr: string, endStr: string) => {
+    if (!startStr) return '-';
+    const startDate = new Date(startStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (!endStr) return startDate;
+    const endDate = new Date(endStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+    
+    // ถ้าวันเริ่มกับวันจบเป็นวันเดียวกัน ให้แสดงแค่วันเดียว
+    if (startDate === endDate) return startDate;
+    return `${startDate} - ${endDate}`;
+  };
 
   const formatThaiDateOnly = (dateString: string) => {
     if (!dateString) return '-';
@@ -97,35 +143,28 @@ export default function DetailActivityPage() {
   }
 
   if (!activity) {
-    return <p className="text-center text-gray-500 mt-10">ไม่พบข้อมูลกิจกรรม</p>;
+    return <p className="text-center text-gray-500 mt-10">ไม่พบข้อมูลคำร้องขออนุมัติกิจกรรม</p>;
   }
 
-  // ⭐ เปลี่ยนเป็น allMedia ดึงมาทั้งรูปภาพและวิดีโอ
   const allMedia = activity.activityFile?.filter((f: any) => f.type === 'COVER' || f.type === 'GALLERY' || f.type === 'VIDEO') || [];
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto space-y-8 relative">
+    <div className="w-full max-w-[1100px] mx-auto space-y-8 relative pb-12">
       
-      <h1 className="text-[24px] font-bold text-[#712874]">รายละเอียดกิจกรรม</h1>
+      {/* Header & Back Button */}
+      <div className="flex items-center space-x-2">
+        <button 
+          onClick={() => navigate(-1)}
+          className="text-[#712874] hover:opacity-75 transition-opacity p-1 cursor-pointer flex items-center justify-center"
+          title="ย้อนกลับ"
+        >
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="text-[24px] font-bold text-[#712874]">รายละเอียดคำขออนุมัติกิจกรรม</h1>
+      </div>
       
-      {/* 🔴 กล่องแจ้งเตือนกรณีถูกปฏิเสธ (REJECTED) */}
-      {activity.statusApprove === 'REJECTED' && (
-        <div className="bg-[#FFF5F5] border border-red-200 rounded-2xl p-6 flex items-start space-x-4 shadow-sm">
-          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 text-red-600 mt-0.5">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </div>
-          <div>
-            <h4 className="text-[16px] font-bold text-gray-900 mb-1">ปฏิเสธคำขอ</h4>
-            <p className="text-[14px] text-gray-600">
-              <span className="font-semibold text-gray-700">เหตุผลปฏิเสธคำขอ : </span> 
-              {activity.rejectReason || 'ไม่มีระบุเหตุผล'}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* 1. Header Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
@@ -134,7 +173,6 @@ export default function DetailActivityPage() {
           <div className="w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden relative shadow-md flex items-center justify-center">
             {activeImage ? (
               isVideoFile(activeImage) ? (
-                // ⭐ ถ้าเป็นวิดีโอ ใช้แท็ก <video> พร้อม controls
                 <video 
                   src={getImageUrl(activeImage)} 
                   className="w-full h-full object-contain bg-black" 
@@ -142,7 +180,6 @@ export default function DetailActivityPage() {
                   preload="metadata"
                 />
               ) : (
-                // ถ้าเป็นรูป ใช้แท็ก <img>
                 <img 
                   onClick={() => setPreviewImage(getImageUrl(activeImage))}
                   src={getImageUrl(activeImage)} 
@@ -173,7 +210,6 @@ export default function DetailActivityPage() {
                           className="w-full h-full object-cover opacity-70" 
                           preload="metadata"
                         />
-                        {/* ไอคอน Video ทับด้านบน */}
                         <div className="absolute inset-0 flex items-center justify-center">
                            <svg className="w-6 h-6 text-white/90 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>
                         </div>
@@ -201,14 +237,24 @@ export default function DetailActivityPage() {
             <div className="flex justify-between items-start mb-3">
               <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
               
-              {/* 🔴 ปุ่มแก้ไข พาไปหน้า Edit ตาม ID กิจกรรม */}
-              <Link 
-                to={`/superadmin/activity/${activity.id}/edit`}
-                className="flex items-center space-x-1.5 bg-[#712874] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm shrink-0 mt-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                <span>แก้ไข</span>
-              </Link>
+              {/* ปุ่ม อนุมัติ / ปฏิเสธ ด้านขวาบน */}
+              <div className="flex items-center space-x-2 shrink-0 mt-1">
+                <button 
+                  onClick={() => {
+                    setRejectReason('');
+                    setModalState('rejectReason');
+                  }}
+                  className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:border-[#712874] hover:text-[#712874] transition-colors bg-white shadow-sm"
+                >
+                  ปฏิเสธ
+                </button>
+                <button 
+                  onClick={() => setModalState('confirmApprove')}
+                  className="bg-[#712874] text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
+                >
+                  อนุมัติ
+                </button>
+              </div>
             </div>
             
             <p className="text-[#712874] font-semibold text-[15px] border-l-4 border-[#712874] pl-3 mb-6 whitespace-pre-line leading-relaxed">
@@ -219,7 +265,8 @@ export default function DetailActivityPage() {
             <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
                 <div className="grid grid-cols-[120px_1fr] gap-y-3.5 text-[14px] text-gray-800 items-center">
                   <span className="font-semibold text-gray-600">วันที่</span>
-                  <span>{formatThaiDateOnly(activity.startDate)}</span>
+                  {/* ⭐ ใช้วันที่แบบ Range */}
+                  <span>{formatDateRange(activity.startDate, activity.dueDate)}</span>
                   
                   <span className="font-semibold text-gray-600">สถานที่จัดงาน</span>
                   <span>{activity.location?.name || '-'}</span>
@@ -244,7 +291,7 @@ export default function DetailActivityPage() {
                   <span className="font-semibold text-gray-600">ติดต่อ</span>
                   <span>{activity.phone || '-'}</span>
 
-                  {/* ⭐ เพิ่มส่วนแสดง Social Media แบบไอคอนสัญลักษณ์ */}
+                  {/* ⭐ เพิ่มส่วนแสดง Social Media แบบไอคอน */}
                   {(activity.facebookUrl || activity.lineUrl) && (
                     <>
                       <span className="font-semibold text-gray-600">โซเชียลมีเดีย</span>
@@ -398,6 +445,116 @@ export default function DetailActivityPage() {
                   className="max-w-full max-h-[85vh] object-contain rounded-lg" 
                />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ================== MODALS SECTION ================== */}
+
+      {/* 1. Modal: ยืนยันการอนุมัติกิจกรรม */}
+      {modalState === 'confirmApprove' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
+            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
+              <span className="text-[36px] font-bold text-black leading-none">!</span>
+            </div>
+            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ยืนยันการอนุมัติกิจกรรม</h3>
+            <p className="text-[14px] text-gray-500 mb-8 text-center">คุณต้องการยืนยันการอนุมัติกิจกรรมหรือไม่</p>
+            <div className="flex space-x-4 w-full justify-center">
+              <button onClick={() => setModalState('none')} disabled={isProcessing} className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]">
+                ยกเลิก
+              </button>
+              <button onClick={handleApprove} disabled={isProcessing} className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] transition-colors w-[120px] flex justify-center items-center">
+                {isProcessing ? 'รอสักครู่...' : 'ยืนยัน'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal: อนุมัติกิจกรรมสำเร็จ */}
+      {modalState === 'successApprove' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
+            <div className="w-[76px] h-[76px] rounded-full bg-[#6B2A68] flex items-center justify-center mb-6 shadow-inner">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h3 className="text-[20px] font-bold text-gray-900 mb-3">อนุมัติกิจกรรมสำเร็จ</h3>
+            <p className="text-[14px] text-gray-500 mb-8 text-center">กิจกรรมถูกอนุมัติเรียบร้อยแล้ว</p>
+            <button onClick={() => navigate('/superadmin/activity-requests')} className="px-8 py-2.5 bg-[#4A154B] text-white rounded-lg text-[14px] font-medium hover:bg-[#340f35] transition-colors w-[140px]">
+              ปิด
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal: ปฏิเสธคำขออนุมัติ (กรอกเหตุผล) */}
+      {modalState === 'rejectReason' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
+            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
+              <span className="text-[36px] font-bold text-black leading-none">!</span>
+            </div>
+            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ปฏิเสธคำขออนุมัติ</h3>
+            <p className="text-[14px] text-gray-500 mb-6 text-center">กรุณากรอกเหตุผลการปฏิเสธ</p>
+            
+            <textarea 
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="ระบุเหตุผล..."
+              rows={4}
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-[#712874] resize-none mb-8"
+            ></textarea>
+
+            <div className="flex space-x-4 w-full justify-center">
+              <button onClick={() => setModalState('none')} className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]">
+                ยกเลิก
+              </button>
+              <button 
+                onClick={() => setModalState('confirmReject')} 
+                disabled={!rejectReason.trim()}
+                className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] disabled:opacity-50 transition-colors w-[120px]"
+              >
+                ส่ง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal: ยืนยันการปฏิเสธกิจกรรม */}
+      {modalState === 'confirmReject' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
+            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
+              <span className="text-[36px] font-bold text-black leading-none">!</span>
+            </div>
+            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ยืนยันการปฏิเสธกิจกรรม</h3>
+            <p className="text-[14px] text-gray-500 mb-8 text-center">คุณต้องการยืนยันการปฏิเสธกิจกรรมหรือไม่</p>
+            <div className="flex space-x-4 w-full justify-center">
+              <button onClick={() => setModalState('rejectReason')} disabled={isProcessing} className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]">
+                ยกเลิก
+              </button>
+              <button onClick={handleReject} disabled={isProcessing} className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] transition-colors w-[120px] flex justify-center items-center">
+                {isProcessing ? 'รอสักครู่...' : 'ยืนยัน'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Modal: ปฏิเสธกิจกรรมสำเร็จ */}
+      {modalState === 'successReject' && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
+            <div className="w-[76px] h-[76px] rounded-full bg-[#6B2A68] flex items-center justify-center mb-6 shadow-inner">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ปฏิเสธกิจกรรมสำเร็จ</h3>
+            <p className="text-[14px] text-gray-500 mb-8 text-center">กิจกรรมถูกปฏิเสธเรียบร้อยแล้ว</p>
+            <button onClick={() => navigate('/superadmin/activity-requests')} className="px-8 py-2.5 bg-[#4A154B] text-white rounded-lg text-[14px] font-medium hover:bg-[#340f35] transition-colors w-[140px]">
+              ปิด
+            </button>
           </div>
         </div>
       )}

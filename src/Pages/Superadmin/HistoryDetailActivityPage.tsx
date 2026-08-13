@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../Libs/axios';
 
 // ⭐ Import รูปภาพ Facebook และ Line จาก assets
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
-export default function DetailActivityPage() {
+export default function HistoryDetailActivityPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -31,10 +32,10 @@ export default function DetailActivityPage() {
     return `${BACKEND_URL}/${cleanPath.replace(/^\//, '')}`;
   };
 
-  // ⭐ ฟังก์ชันเช็คไฟล์วิดีโอ
+  // ฟังก์ชันเช็คไฟล์วิดีโอ
   const isVideoFile = (path: string) => {
     if (!path) return false;
-    const cleanPath = path.split('?')[0]; // เผื่อมี Query String ติดมา
+    const cleanPath = path.split('?')[0]; 
     return cleanPath.match(/\.(mp4|mov|m4v|webm)$/i) !== null;
   };
 
@@ -50,7 +51,6 @@ export default function DetailActivityPage() {
         if (cover) {
           setActiveImage(cover);
         } else {
-          // ถ้าไม่มี Cover ให้ดึง Gallery หรือ Video ตัวแรกมาแสดงแทน
           const firstMedia = activityData.activityFile?.filter((f: any) => f.type === 'GALLERY' || f.type === 'VIDEO')?.[0]?.filePath;
           if (firstMedia) setActiveImage(firstMedia);
         }
@@ -100,14 +100,25 @@ export default function DetailActivityPage() {
     return <p className="text-center text-gray-500 mt-10">ไม่พบข้อมูลกิจกรรม</p>;
   }
 
-  // ⭐ เปลี่ยนเป็น allMedia ดึงมาทั้งรูปภาพและวิดีโอ
   const allMedia = activity.activityFile?.filter((f: any) => f.type === 'COVER' || f.type === 'GALLERY' || f.type === 'VIDEO') || [];
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto space-y-8 relative">
+    <div className="w-full max-w-[1100px] mx-auto space-y-8 relative pb-10">
       
-      <h1 className="text-[24px] font-bold text-[#712874]">รายละเอียดกิจกรรม</h1>
-      
+      {/* Header & Back Button */}
+      <div className="flex items-center space-x-2">
+        <button 
+          onClick={() => navigate(-1)}
+          className="text-[#712874] hover:opacity-70 transition-opacity p-1 -ml-1 cursor-pointer flex items-center justify-center"
+          title="ย้อนกลับ"
+        >
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="text-[24px] font-bold text-[#712874]">รายละเอียดประวัติกิจกรรม</h1>
+      </div>
+
       {/* 🔴 กล่องแจ้งเตือนกรณีถูกปฏิเสธ (REJECTED) */}
       {activity.statusApprove === 'REJECTED' && (
         <div className="bg-[#FFF5F5] border border-red-200 rounded-2xl p-6 flex items-start space-x-4 shadow-sm">
@@ -125,7 +136,7 @@ export default function DetailActivityPage() {
           </div>
         </div>
       )}
-
+      
       {/* 1. Header Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
@@ -134,7 +145,6 @@ export default function DetailActivityPage() {
           <div className="w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden relative shadow-md flex items-center justify-center">
             {activeImage ? (
               isVideoFile(activeImage) ? (
-                // ⭐ ถ้าเป็นวิดีโอ ใช้แท็ก <video> พร้อม controls
                 <video 
                   src={getImageUrl(activeImage)} 
                   className="w-full h-full object-contain bg-black" 
@@ -142,7 +152,6 @@ export default function DetailActivityPage() {
                   preload="metadata"
                 />
               ) : (
-                // ถ้าเป็นรูป ใช้แท็ก <img>
                 <img 
                   onClick={() => setPreviewImage(getImageUrl(activeImage))}
                   src={getImageUrl(activeImage)} 
@@ -173,7 +182,6 @@ export default function DetailActivityPage() {
                           className="w-full h-full object-cover opacity-70" 
                           preload="metadata"
                         />
-                        {/* ไอคอน Video ทับด้านบน */}
                         <div className="absolute inset-0 flex items-center justify-center">
                            <svg className="w-6 h-6 text-white/90 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>
                         </div>
@@ -196,82 +204,71 @@ export default function DetailActivityPage() {
         </div>
 
         {/* Info Right */}
-        <div className="md:col-span-7 lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-start mb-3">
-              <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
-              
-              {/* 🔴 ปุ่มแก้ไข พาไปหน้า Edit ตาม ID กิจกรรม */}
-              <Link 
-                to={`/superadmin/activity/${activity.id}/edit`}
-                className="flex items-center space-x-1.5 bg-[#712874] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm shrink-0 mt-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                <span>แก้ไข</span>
-              </Link>
-            </div>
-            
-            <p className="text-[#712874] font-semibold text-[15px] border-l-4 border-[#712874] pl-3 mb-6 whitespace-pre-line leading-relaxed">
-              {activity.tagline}
-            </p>
+        <div className="md:col-span-7 lg:col-span-8 flex flex-col">
+          <div className="flex justify-between items-start mb-3">
+            <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
+          </div>
+          
+          <p className="text-[#712874] font-semibold text-[15px] border-l-4 border-[#712874] pl-3 mb-6 whitespace-pre-line leading-relaxed">
+            {activity.tagline}
+          </p>
 
-            {/* INFO BOX */}
-            <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
-                <div className="grid grid-cols-[120px_1fr] gap-y-3.5 text-[14px] text-gray-800 items-center">
-                  <span className="font-semibold text-gray-600">วันที่</span>
-                  <span>{formatThaiDateOnly(activity.startDate)}</span>
-                  
-                  <span className="font-semibold text-gray-600">สถานที่จัดงาน</span>
-                  <span>{activity.location?.name || '-'}</span>
-                  
-                  <span className="font-semibold text-gray-600">ละติจูด ลองจิจูด</span>
-                  <span>{activity.location?.latitude ? `${activity.location.latitude} , ${activity.location.longitude}` : '-'}</span>
-                  
-                  <span className="font-semibold text-gray-600">แผนที่</span>
-                  {activity.location?.latitude && activity.location?.longitude ? (
-                      <a 
-                          href={`https://www.google.com/maps/search/?api=1&query=${activity.location.latitude},${activity.location.longitude}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-gray-500 hover:text-blue-600 hover:underline break-all"
-                      >
-                          {`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`}
-                      </a>
-                  ) : (
-                      <span>-</span>
-                  )}
-                  
-                  <span className="font-semibold text-gray-600">ติดต่อ</span>
-                  <span>{activity.phone || '-'}</span>
+          {/* INFO BOX */}
+          <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
+              <div className="grid grid-cols-[120px_1fr] gap-y-3.5 text-[14px] text-gray-800 items-center">
+                <span className="font-semibold text-gray-600">วันที่</span>
+                <span>{formatThaiDateOnly(activity.startDate)}</span>
+                
+                <span className="font-semibold text-gray-600">สถานที่จัดงาน</span>
+                <span>{activity.location?.name || '-'}</span>
+                
+                <span className="font-semibold text-gray-600">ละติจูด ลองจิจูด</span>
+                <span>{activity.location?.latitude ? `${activity.location.latitude} , ${activity.location.longitude}` : '-'}</span>
+                
+                <span className="font-semibold text-gray-600">แผนที่</span>
+                {activity.location?.latitude && activity.location?.longitude ? (
+                    <a 
+                        href={`https://www.google.com/maps/search/?api=1&query=${activity.location.latitude},${activity.location.longitude}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-gray-500 hover:text-blue-600 hover:underline break-all"
+                    >
+                        {`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`}
+                    </a>
+                ) : (
+                    <span>-</span>
+                )}
+                
+                <span className="font-semibold text-gray-600">ติดต่อ</span>
+                <span>{activity.phone || '-'}</span>
 
-                  {/* ⭐ เพิ่มส่วนแสดง Social Media แบบไอคอนสัญลักษณ์ */}
-                  {(activity.facebookUrl || activity.lineUrl) && (
-                    <>
-                      <span className="font-semibold text-gray-600">โซเชียลมีเดีย</span>
-                      <div className="flex items-center gap-3">
-                        {activity.facebookUrl && (
-                          <a href={activity.facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="Facebook">
-                            <img src={facebookIcon} alt="Facebook" className="w-8 h-8 object-contain" />
-                          </a>
-                        )}
-                        {activity.lineUrl && (
-                          <a href={activity.lineUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="LINE">
-                            <img src={lineIcon} alt="LINE" className="w-8 h-8 object-contain" />
-                          </a>
-                        )}
-                      </div>
-                    </>
-                  )}
-                  
-                  <span className="font-semibold text-gray-600">ค่าเข้าชม</span>
-                  <span className="text-green-600 font-bold">{Number(activity.price) === 0 ? 'ฟรี' : `${activity.price} บาท`}</span>
-                </div>
-            </div>
+                {/* ⭐ เพิ่มส่วนแสดง Social Media แบบไอคอนสัญลักษณ์ */}
+                {(activity.facebookUrl || activity.lineUrl) && (
+                  <>
+                    <span className="font-semibold text-gray-600">โซเชียลมีเดีย</span>
+                    <div className="flex items-center gap-3">
+                      {activity.facebookUrl && (
+                        <a href={activity.facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="Facebook">
+                          <img src={facebookIcon} alt="Facebook" className="w-8 h-8 object-contain" />
+                        </a>
+                      )}
+                      {activity.lineUrl && (
+                        <a href={activity.lineUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="LINE">
+                          <img src={lineIcon} alt="LINE" className="w-8 h-8 object-contain" />
+                        </a>
+                      )}
+                    </div>
+                  </>
+                )}
+                
+                <span className="font-semibold text-gray-600">ค่าเข้าชม</span>
+                <span className="text-green-600 font-bold">{Number(activity.price) === 0 ? 'ฟรี' : `${activity.price} บาท`}</span>
+              </div>
           </div>
 
           {/* OpenStreetMap Iframe */}
           {activity.location?.latitude && activity.location?.longitude && (
-              <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200 mt-auto">
+              <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200">
                    <iframe 
                       title="OpenStreetMap"
                       width="100%" 

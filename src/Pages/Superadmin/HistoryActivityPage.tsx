@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../../Libs/axios';
 
-export default function ManageActivitySuperAdmin() {
+export default function HistoryActivityPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,12 +12,6 @@ export default function ManageActivitySuperAdmin() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [rowsPerPage, setRowsPerPage] = useState<number>(10);
 
-  // ================= Delete Modal State =================
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
-  const [activityToDelete, setActivityToDelete] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -24,7 +19,7 @@ export default function ManageActivitySuperAdmin() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/superadmin/activities');
+      const response = await api.get('/superadmin/activity/histories');
       const activities = response.data.data || response.data;
       setData(activities);
     } catch (err: any) {
@@ -34,13 +29,40 @@ export default function ManageActivitySuperAdmin() {
     }
   };
 
-  const renderStatus = (status: string) => {
-    switch (status) {
-      case 'PUBLISH': return 'เผยแพร่';
-      case 'UNPUBLISH': return 'ไม่เผยแพร่';
-      case 'DRAFT': return 'แบบร่าง';
-      default: return status || 'ไม่ระบุ';
+  // ================= Helper Functions =================
+  const formatActivityType = (type: string) => {
+    switch (type) {
+      case 'CULTURAL_FESTIVAL': return 'เทศกาลประเพณีและวัฒนธรรม';
+      case 'EXHIBITION_ART': return 'นิทรรศการและศิลปะ';
+      case 'PERFORMANCE_MUSIC': return 'การแสดง ดนตรี และความบันเทิง';
+      case 'FOOD_DRINK_FESTIVAL': return 'เทศกาลอาหารและเครื่องดื่ม';
+      case 'MARKET_FAIR': return 'ตลาดนัดช้อปปิ้ง และงานแฟร์';
+      case 'TRAINING_SEMINAR': return 'การอบรมและเสวนา';
+      case 'SPORT_RECREATION': return 'กีฬา นันทนาการ';
+      case 'COMMUNITY_TOURISM': return 'ท่องเที่ยวชุมชน';
+      default: return type || '-';
     }
+  };
+
+  const formatDateRange = (start: string, end: string) => {
+    if (!start || !end) return '-';
+    
+    const thaiMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    const startStr = `${startDate.getDate()} ${thaiMonths[startDate.getMonth()]} ${(startDate.getFullYear() + 543).toString().slice(-2)}`;
+    const endStr = `${endDate.getDate()} ${thaiMonths[endDate.getMonth()]} ${(endDate.getFullYear() + 543).toString().slice(-2)}`;
+
+    return `${startStr} - ${endStr}`;
+  };
+
+  const formatPrice = (price: any) => {
+    if (price === null || price === undefined || Number(price) === 0) {
+      return 'ฟรี';
+    }
+    return `${Number(price).toLocaleString()} บาท`;
   };
 
   // ================= Pagination Logic =================
@@ -64,48 +86,10 @@ export default function ManageActivitySuperAdmin() {
     setCurrentPage(1);
   };
 
-  // ================= Delete Handlers =================
-  const openDeleteConfirm = (id: number) => {
-    setActivityToDelete(id);
-    setIsConfirmModalOpen(true);
-  };
-
-  const closeConfirmModal = () => {
-    setIsConfirmModalOpen(false);
-    setActivityToDelete(null);
-  };
-
-  const handleDelete = async () => {
-    if (activityToDelete === null) return;
-    
-    setIsDeleting(true);
-    try {
-      await api.delete(`/superadmin/activity/${activityToDelete}`);
-      
-      setData(prev => prev.filter(item => item.id !== activityToDelete));
-      
-      setIsConfirmModalOpen(false);
-      setIsSuccessModalOpen(true);
-      
-      if (currentItems.length === 1 && currentPage > 1) {
-        setCurrentPage(prev => prev - 1);
-      }
-    } catch (err: any) {
-      alert(`เกิดข้อผิดพลาดในการลบ: ${err.response?.data?.message || err.message}`);
-    } finally {
-      setIsDeleting(false);
-      setActivityToDelete(null);
-    }
-  };
-
-  const closeSuccessModal = () => {
-    setIsSuccessModalOpen(false);
-  };
-
   return (
     <div className="w-full space-y-6 relative">
       
-      <h1 className="text-[24px] font-bold text-[#712874]">จัดการกิจกรรม</h1>
+      <h1 className="text-[24px] font-bold text-[#712874]">ประวัติกิจกรรม</h1>
 
       {/* ================= Filter Card ================= */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -167,27 +151,17 @@ export default function ManageActivitySuperAdmin() {
         </div>
       </div>
 
-      {/* ================= Create Button ================= */}
-      <div className="flex justify-end">
-        <Link 
-          to="/superadmin/activity/create" 
-          className="bg-[#712874] text-white font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-purple-900 transition-colors shadow-sm inline-block"
-        >
-          สร้างกิจกรรมใหม่
-        </Link>
-      </div>
-
       {/* ================= Table Card ================= */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#F8F5F8] text-[#712874] text-[14px] border-b border-gray-100">
-                <th className="py-4 px-6 font-semibold w-[30%]">ชื่อกิจกรรม</th>
+                <th className="py-4 px-6 font-semibold w-[25%]">ชื่อกิจกรรม</th>
                 <th className="py-4 px-6 font-semibold w-[20%]">ประเภท</th>
                 <th className="py-4 px-6 font-semibold w-[25%]">สถานที่</th>
-                <th className="py-4 px-6 font-semibold w-[15%]">สถานะ</th>
-                <th className="py-4 px-6 font-semibold text-center w-[10%]">จัดการ</th>
+                <th className="py-4 px-6 font-semibold w-[20%]">วันเวลา</th>
+                <th className="py-4 px-6 font-semibold w-[10%]">ค่าเข้าชม</th>
               </tr>
             </thead>
             <tbody className="text-gray-700 text-[14px]">
@@ -202,28 +176,16 @@ export default function ManageActivitySuperAdmin() {
               ) : currentItems && currentItems.length > 0 ? (
                 <>
                   {currentItems.map((item: any, index: number) => (
-                    <tr key={`data-${index}`} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="py-4 px-6 font-medium text-[#712874] hover:underline cursor-pointer">
-                        <Link to={`/superadmin/activity/${item.id}`}>
-                          {item.name || '-'}
-                        </Link>
-                      </td>
-                      <td className="py-4 px-6">{item.activityType || item.type || '-'}</td>
+                    <tr 
+                      key={`data-${index}`} 
+                      onClick={() => navigate(`/superadmin/activity/history/${item.id}`)}
+                      className="border-b border-gray-50 hover:bg-purple-50/50 transition-colors cursor-pointer"
+                    >
+                      <td className="py-4 px-6 font-medium text-gray-800">{item.name || '-'}</td>
+                      <td className="py-4 px-6">{formatActivityType(item.activityType)}</td>
                       <td className="py-4 px-6">{item.location?.name || '-'}</td>
-                      <td className="py-4 px-6">{renderStatus(item.statusActivity)}</td>
-                      <td className="py-4 px-6 flex justify-center space-x-3">
-                        <Link to={`/superadmin/activity/${item.id}/edit`} className="text-gray-400 hover:text-blue-600 transition-colors" title="แก้ไข">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                        </Link>
-                        
-                        <button 
-                          onClick={() => openDeleteConfirm(item.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors" 
-                          title="ลบ"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                      </td>
+                      <td className="py-4 px-6">{formatDateRange(item.startDate, item.dueDate)}</td>
+                      <td className="py-4 px-6 font-medium">{formatPrice(item.price)}</td>
                     </tr>
                   ))}
                   
@@ -236,7 +198,7 @@ export default function ManageActivitySuperAdmin() {
               ) : (
                 <>
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-gray-500 h-[53px] border-b border-gray-50">ไม่พบข้อมูลกิจกรรม</td>
+                    <td colSpan={5} className="py-4 text-center text-gray-500 h-[53px] border-b border-gray-50">ไม่พบข้อมูลประวัติกิจกรรม</td>
                   </tr>
                   {Array.from({ length: rowsPerPage - 1 }).map((_, index) => (
                     <tr key={`empty-no-data-${index}`} className="border-b border-gray-50 h-[53px]">
@@ -289,64 +251,6 @@ export default function ManageActivitySuperAdmin() {
           </div>
         </div>
       </div>
-
-      {/* ================= Modal ยืนยันการลบ ================= */}
-      {/* 🔴 แก้ไข max-w-[] และ padding เพื่อขยายขนาด Modal ให้กว้างขึ้น */}
-      {isConfirmModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            
-            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
-              <span className="text-[36px] font-bold text-black leading-none">!</span>
-            </div>
-            
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ยืนยันการลบกิจกรรม</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">คุณต้องการยืนยันการลบกิจกรรมหรือไม่</p>
-            
-            <div className="flex space-x-4 w-full justify-center">
-              <button 
-                onClick={closeConfirmModal}
-                disabled={isDeleting}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] transition-colors w-[120px] flex justify-center items-center"
-              >
-                {isDeleting ? 'กำลังลบ...' : 'ยืนยัน'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= Modal ลบสำเร็จ ================= */}
-      {/* 🔴 แก้ไข max-w-[] และ padding เพื่อขยายขนาด Modal ให้กว้างขึ้น */}
-      {isSuccessModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            
-            <div className="w-[76px] h-[76px] rounded-full bg-[#6B2A68] flex items-center justify-center mb-6 shadow-inner">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-            
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ลบกิจกรรมสำเร็จ</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">กิจกรรมถูกลบ</p>
-            
-            <button 
-              onClick={closeSuccessModal}
-              className="px-8 py-2.5 bg-[#4A154B] text-white rounded-lg text-[14px] font-medium hover:bg-[#340f35] transition-colors w-[140px]"
-            >
-              ปิด
-            </button>
-          </div>
-        </div>
-      )}
 
     </div>
   );
