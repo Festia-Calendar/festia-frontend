@@ -75,7 +75,7 @@ export default function CreateActivityPage() {
   const [thaiData, setThaiData] = useState<any[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
-  // ⭐ State สำหรับเก็บ Error ของแต่ละช่อง
+  // State สำหรับเก็บ Error ของแต่ละช่อง
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // ================= Shared Modal State =================

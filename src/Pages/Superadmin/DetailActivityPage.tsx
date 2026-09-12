@@ -12,7 +12,7 @@ import { activityService } from '../../Services/activity.service';
 // Import Components
 import ActivityMediaViewer from '../../Components/ActivityMediaViewer';
 
-// ⭐ Import รูปภาพ Facebook และ Line จาก assets
+// Import รูปภาพ
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
@@ -164,7 +164,7 @@ export default function DetailActivityPage() {
       {/* Header Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
-        {/* รูปซ้ายมือ (ส่งฟังก์ชัน getImageUrl และ isVideoFile เข้าไป) */}
+        {/* รูปซ้ายมือ */}
         <div className="md:col-span-5 lg:col-span-4">
           <ActivityMediaViewer 
             mediaFiles={allMedia} 

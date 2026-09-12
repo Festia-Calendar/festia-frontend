@@ -145,7 +145,7 @@ export default function DetailActivityPageUser() {
           <h1 className="text-[18px] font-bold text-[#712874]">ย้อนกลับ</h1>
         </div>
 
-        {/* 1. Header Section */}
+        {/* Header Section */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
           {/* Poster Left */}
           <div className="md:col-span-5 flex flex-col space-y-3">
@@ -215,13 +215,13 @@ export default function DetailActivityPageUser() {
           </div>
         </div>
 
-        {/* 2. Description Section */}
+        {/* Description Section */}
         <div className="bg-white p-8 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.05)] border border-gray-100">
           <h3 className="text-[18px] font-bold text-[#712874] mb-5 pb-3 border-b border-dashed border-gray-200">รายละเอียดกิจกรรม</h3>
           <p className="text-gray-600 leading-relaxed text-[15px] whitespace-pre-line px-2">{data.description || '-'}</p>
         </div>
 
-        {/* 3. Schedule Section */}
+        {/* Schedule Section */}
         <div className="bg-white p-8 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.05)] border border-gray-100">
           <h3 className="text-[18px] font-bold text-[#712874] mb-6 pb-3 border-b border-dashed border-gray-200">กำหนดการกิจกรรม</h3>
           <div className="space-y-8 px-2">
@@ -254,7 +254,7 @@ export default function DetailActivityPageUser() {
           </div>
         </div>
 
-        {/* 4. Related Activities Section */}
+        {/* Related Activities Section */}
         {relatedActivities.length > 0 && (
           <div className="pt-8">
             <h3 className="text-[20px] font-bold text-[#712874] mb-6 pl-2">กิจกรรมที่คุณอาจสนใจ</h3>

@@ -5,7 +5,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api from '../../Libs/axios';
 
 // Import Services
 import { activityService } from '../../Services/activity.service';
@@ -13,7 +12,7 @@ import { activityService } from '../../Services/activity.service';
 // Import Component
 import ActivityMediaViewer from '../../Components/ActivityMediaViewer';
 
-// ⭐ Import รูปภาพ Facebook และ Line จาก assets
+// Import รูปภาพ
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
