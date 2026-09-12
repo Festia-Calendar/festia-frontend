@@ -1,7 +1,7 @@
 /**
- * คำอธิบาย : Component สำหรับหน้าแดชบอร์ด (Dashboard) ของระบบสำหรับสิทธิ์ Super Admin
- * แสดงผลสถิติภาพรวม เช่น กราฟวงกลม (สัดส่วนกิจกรรมแต่ละประเภท), กราฟแท่ง (จำนวนกิจกรรมรายเดือน), 
- * ตาราง 10 อันดับกิจกรรมยอดนิยม และมีฟังก์ชันสำหรับ Export รายงานสถิติเป็น PDF หรือ Excel
+ * คำอธิบาย : Component สำหรับหน้าแดชบอร์ดรายงานสถิติของสิทธิ์ผู้ดูแลระบบทั่วไป (Admin Dashboard Page)
+ * ทำหน้าที่แสดงผลกราฟสถิติภาพรวม, ข้อมูลสรุปแยกตามประเภทกิจกรรมและรายเดือน, 
+ * ตาราง 10 อันดับกิจกรรมยอดนิยมที่อยู่ภายใต้การดูแลของแอดมินคนนั้นๆ พร้อมระบบตัวกรองและฟังก์ชันส่งออกรายงาน (Export Report) เป็น PDF หรือ Excel
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ import jsPDF from 'jspdf';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
-// Import Service และ Components ที่แยกไว้
+// Import Service และ Components
 import { dashboardService } from '../../Services/dashboard.service';
 import CustomDateRangePicker from '../../Components/CustomDateRangePicker';
 import DashboardReportModal from '../../Components/DashboardReportModal';
@@ -48,11 +48,11 @@ const PIE_COLORS = [
 // ================= Main Dashboard Component =================
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้า Dashboard ของ Super Admin
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้า Dashboard ของ Admin
  * Input: -
- * Output: UI ของหน้า Dashboard ที่รวมตัวกรองข้อมูล กราฟ และตารางสรุปผล
+ * Output: UI แสดงกราฟสถิติ, ตารางกิจกรรมยอดนิยม และเครื่องมือกรองข้อมูล/พิมพ์รายงาน
  */
-export default function DashboardSuperAdmin() {
+export default function AdminDashboardPage() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export default function DashboardSuperAdmin() {
   const [modalAvailableProvinces, setModalAvailableProvinces] = useState<any[]>([]);
 
   /**
-   * คำอธิบาย : Hook สำหรับโหลดข้อมูลจังหวัด อำเภอ ตำบล จาก API ภายนอก (ทำงานครั้งเดียวตอนโหลดหน้า)
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทยจาก GitHub
    * Input: -
    * Output: -
    */
@@ -102,7 +102,7 @@ export default function DashboardSuperAdmin() {
   }, []);
 
   /**
-   * คำอธิบาย : Hook จัดการการกรองจังหวัดในหน้าหลัก เมื่อเลือกภูมิภาค
+   * คำอธิบาย : Hook สำหรับกรองรายการจังหวัดในหน้าหลักตามภูมิภาคที่เลือก
    * Input: -
    * Output: -
    */
@@ -117,7 +117,7 @@ export default function DashboardSuperAdmin() {
   }, [selectedZone, thaiData]);
 
   /**
-   * คำอธิบาย : Hook จัดการการกรองจังหวัดใน Modal Export เมื่อเลือกภูมิภาค
+   * คำอธิบาย : Hook สำหรับกรองรายการจังหวัดใน Modal Export ตามภูมิภาคที่เลือก
    * Input: -
    * Output: -
    */
@@ -133,8 +133,8 @@ export default function DashboardSuperAdmin() {
 
   /**
    * คำอธิบาย : ฟังก์ชันแปลงรูปแบบวันที่สำหรับส่งไปยัง Backend API (YYYY-MM-DD)
-   * Input: date (Date | null) - ค่าวันที่ต้องการแปลง
-   * Output: string (ตัวอย่าง: "2024-03-15") หรือ undefined หากไม่มีค่า
+   * Input: date (Date | null)
+   * Output: string | undefined
    */
   const formatDateForAPI = (date: Date | null) => {
     if (!date) return undefined;
@@ -145,7 +145,7 @@ export default function DashboardSuperAdmin() {
   };
 
   /**
-   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดจาก Backend เมื่อตัวกรองมีการเปลี่ยนแปลง
+   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดผ่าน Service ของ Admin (getAdminDashboardData) เมื่อตัวกรองเปลี่ยนไป
    * Input: -
    * Output: -
    */
@@ -153,7 +153,7 @@ export default function DashboardSuperAdmin() {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        const data = await dashboardService.getDashboardData({
+        const data = await dashboardService.getAdminDashboardData({
           startDate: formatDateForAPI(dateRange[0]),
           endDate: formatDateForAPI(dateRange[1]),
           zone: selectedZone || undefined,
@@ -203,7 +203,7 @@ export default function DashboardSuperAdmin() {
   }, [filteredProvinceData.length, reportRowsPerPage]);
 
   /**
-   * คำอธิบาย : ฟังก์ชันเปิด Modal สำหรับพิมพ์รายงาน และคัดลอกค่าฟิลเตอร์ปัจจุบันจากหน้าหลักมาใช้งาน
+   * คำอธิบาย : ฟังก์ชันเปิด Modal พิมพ์รายงาน พร้อมคัดลอกค่าตัวกรองปัจจุบัน
    * Input: -
    * Output: -
    */
@@ -214,9 +214,9 @@ export default function DashboardSuperAdmin() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานเป็นไฟล์ PDF โดยการเรนเดอร์ HTML เป็นรูปภาพ (html-to-image) แล้วจับใส่หน้า PDF (jsPDF)
+   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานสถิติจังหวัดเป็นไฟล์ PDF
    * Input: -
-   * Output: - (สั่งดาวน์โหลดไฟล์ PDF ไปที่เครื่องผู้ใช้งาน)
+   * Output: - (สั่งดาวน์โหลดไฟล์ PDF)
    */
   const handleDownloadReportPDF = async () => {
     setIsExporting(true);
@@ -252,9 +252,9 @@ export default function DashboardSuperAdmin() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันสร้างและดาวน์โหลดรายงานข้อมูลจังหวัดเป็นไฟล์ Excel (.xlsx) ด้วยไลบรารี ExcelJS
+   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานสถิติจังหวัดเป็นไฟล์ Excel (.xlsx)
    * Input: -
-   * Output: - (สั่งดาวน์โหลดไฟล์ Excel ไปที่เครื่องผู้ใช้งาน)
+   * Output: - (สั่งดาวน์โหลดไฟล์ Excel)
    */
   const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
@@ -346,9 +346,9 @@ export default function DashboardSuperAdmin() {
   const RADIAN = Math.PI / 180;
   
   /**
-   * คำอธิบาย : ฟังก์ชันปรับแต่ง Label ของกราฟวงกลม (Pie Chart) ให้แสดงค่าเปอร์เซ็นต์และจำนวนรายการภายในกราฟ
-   * Input: คุณสมบัติ (Properties) จาก Recharts ของแต่ละชิ้นข้อมูล (cx, cy, midAngle, innerRadius, outerRadius, percent, value)
-   * Output: JSX Element ที่เป็นข้อความ (SVG Text) ที่ถูกจัดวางตำแหน่งแล้ว
+   * คำอธิบาย : ฟังก์ชันปรับแต่ง Label แสดงเปอร์เซ็นต์และจำนวนในกราฟวงกลม (Pie Chart)
+   * Input: Properties ของ Recharts (cx, cy, midAngle, innerRadius, outerRadius, percent, value)
+   * Output: JSX Element (SVG Text)
    */
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }: any) => {
     if (percent === 0) return null;
@@ -370,9 +370,7 @@ export default function DashboardSuperAdmin() {
 
   return (
     <div className="w-full space-y-6 pb-10 relative">
-      
       <h1 className="text-[24px] font-bold text-[#712874]">รายงาน</h1>
-
       {/* ================= Top Filters & Print Button ================= */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-end">
         

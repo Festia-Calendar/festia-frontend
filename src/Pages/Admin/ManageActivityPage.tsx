@@ -1,13 +1,13 @@
 /**
- * คำอธิบาย : Component สำหรับหน้าจอ "จัดการกิจกรรม" (Manage Activity Page) ของระบบ
- * ทำหน้าที่แสดงรายการกิจกรรมทั้งหมดในรูปแบบตาราง พร้อมระบบค้นหา, ตัวกรอง (Filters), การแบ่งหน้า (Pagination) 
- * และการจัดการลบกิจกรรมผ่านหน้าต่างแจ้งเตือน (Modal) สำหรับผู้ดูแลระบบ
+ * คำอธิบาย : Component สำหรับหน้าจอ "จัดการกิจกรรมสำหรับ Admin" (Admin Manage Activity Page)
+ * ทำหน้าที่แสดงรายการกิจกรรมทั้งหมดในความดูแลของ Admin ในรูปแบบตาราง พร้อมระบบค้นหา, ตัวกรองสถานที่, 
+ * แบ่งหน้า (Pagination), ลิงก์สร้างกิจกรรมใหม่ และระบบลบกิจกรรมผ่านหน้าต่างยืนยัน (Modal)
  */
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-// Import Services ที่เราแยกไว้
+// Import Services
 import { locationService } from '../../Services/location.service';
 import { activityService } from '../../Services/activity.service';
 
@@ -34,11 +34,11 @@ const REGION_MAP: Record<number, string> = {
 };
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอจัดการกิจกรรม
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอจัดการกิจกรรมของ Admin
  * Input: -
- * Output: UI ตารางแสดงรายการกิจกรรม พร้อมปุ่มสร้างใหม่ ตัวกรอง และปุ่มจัดการลบ
+ * Output: UI ตารางแสดงรายการกิจกรรมของ Admin พร้อมปุ่มสร้างใหม่และตัวกรองค้นหา
  */
-export default function ManageActivityPage() {
+export default function AdminManageActivityPage() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export default function ManageActivityPage() {
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทย
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทยจาก locationService
    * Input: -
    * Output: -
    */
@@ -97,7 +97,7 @@ export default function ManageActivityPage() {
   }, []);
 
   /**
-   * คำอธิบาย : Hook กรองรายการจังหวัดตามภูมิภาคที่เลือก
+   * คำอธิบาย : Hook สำหรับกรองรายชื่อจังหวัดตามภูมิภาคที่เลือก
    * Input: -
    * Output: -
    */
@@ -111,7 +111,7 @@ export default function ManageActivityPage() {
   }, [selectedRegion, thaiData]);
 
   /**
-   * คำอธิบาย : Hook กรองรายการอำเภอ/เขต ตามจังหวัดที่เลือก
+   * คำอธิบาย : Hook สำหรับกรองรายชื่ออำเภอ/เขต ตามจังหวัดที่เลือก
    * Input: -
    * Output: -
    */
@@ -126,7 +126,7 @@ export default function ManageActivityPage() {
   }, [selectedProvince, thaiData]);
 
   /**
-   * คำอธิบาย : Hook กรองรายการตำบล/แขวง ตามอำเภอที่เลือก
+   * คำอธิบาย : Hook สำหรับกรองรายชื่อตำบล/แขวง ตามอำเภอที่เลือก
    * Input: -
    * Output: -
    */
@@ -142,7 +142,7 @@ export default function ManageActivityPage() {
   }, [selectedDistrict, availableDistricts]);
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลกิจกรรมจาก API ทุกครั้งที่หน้า, จำนวนแถว, หรือตัวกรองหลักเปลี่ยนไป
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลกิจกรรมของ Admin จาก API ทุกครั้งที่หน้า, จำนวนแถว หรือฟิลเตอร์เปลี่ยน
    * Input: -
    * Output: -
    */
@@ -151,14 +151,14 @@ export default function ManageActivityPage() {
   }, [currentPage, rowsPerPage, activeFilters]);
 
   /**
-   * คำอธิบาย : ฟังก์ชันเรียก API ดึงข้อมูลรายการกิจกรรมพร้อมตัวกรองและข้อมูลแบ่งหน้า
+   * คำอธิบาย : ฟังก์ชันยิง API ดึงรายการกิจกรรมสำหรับ Admin ผ่าน activityService
    * Input: -
    * Output: -
    */
   const fetchData = async () => {
     setLoading(true);
     try {
-      const payload = await activityService.getActivities({
+      const payload = await activityService.getAdminActivities({
         page: currentPage,
         limit: rowsPerPage,
         search: activeFilters.search || undefined,
@@ -182,7 +182,7 @@ export default function ManageActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่มค้นหาข้อมูลด้วยเงื่อนไขที่เลือก
+   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่มค้นหาข้อมูล
    * Input: -
    * Output: -
    */
@@ -195,7 +195,7 @@ export default function ManageActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันเคลียร์ค่าตัวกรองทั้งหมดกลับสู่ค่าเริ่มต้น
+   * คำอธิบาย : ฟังก์ชันล้างค่าตัวกรองการค้นหาทั้งหมด
    * Input: -
    * Output: -
    */
@@ -218,7 +218,7 @@ export default function ManageActivityPage() {
 
   /**
    * คำอธิบาย : ฟังก์ชันเปลี่ยนจำนวนแถวที่แสดงผลต่อหน้า
-   * Input: e (Event)
+   * Input: e (Event ของ Select)
    * Output: -
    */
   const handleRowsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -227,7 +227,7 @@ export default function ManageActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันลบกิจกรรมที่เลือกผ่านทาง activityService
+   * คำอธิบาย : ฟังก์ชันลบกิจกรรมของ Admin ที่เลือกผ่านทาง activityService
    * Input: -
    * Output: -
    */
@@ -235,8 +235,7 @@ export default function ManageActivityPage() {
     if (activityToDelete === null) return;
     setIsDeleting(true);
     try {
-      // เรียกใช้ Service ลบกิจกรรม
-      await activityService.deleteActivity(activityToDelete);
+      await activityService.deleteAdminActivity(activityToDelete);
       
       setModalState('successDelete');
       if (data.length === 1 && currentPage > 1) setCurrentPage(prev => prev - 1);
@@ -272,7 +271,7 @@ export default function ManageActivityPage() {
 
       <div className="flex justify-end">
         <Link 
-          to="/superadmin/activity/create" 
+          to="/admin/activity/create" 
           className="bg-[#712874] text-white font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-purple-900 transition-colors shadow-sm inline-block"
         >
           สร้างกิจกรรมใหม่
@@ -281,7 +280,8 @@ export default function ManageActivityPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <ActivityTable 
-          mode="manage"
+          mode="manage" 
+          isAdmin={true} 
           data={data} loading={loading} error={error} emptyRowsCount={emptyRowsCount} rowsPerPage={rowsPerPage}
           ACTIVITY_TYPE_MAP={ACTIVITY_TYPE_MAP}
           openDeleteConfirm={(id) => { setActivityToDelete(id); setModalState('confirmDelete'); }}

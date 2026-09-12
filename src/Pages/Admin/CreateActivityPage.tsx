@@ -1,11 +1,10 @@
 /**
- * คำอธิบาย : Component สำหรับหน้าจอ "แก้ไขกิจกรรม" (Edit Activity Page)
- * ทำหน้าที่ดึงข้อมูลเดิมของกิจกรรมมาแสดงในฟอร์ม, จัดการการแก้ไขข้อมูลทั่วไป, ตำแหน่งแผนที่, กำหนดการ, 
- * การจัดการไฟล์รูปภาพ/วิดีโอเก่าและใหม่ รวมถึงการส่งข้อมูลอัปเดตกลับไปยัง Backend
+ * คำอธิบาย : Component สำหรับหน้าจอ "สร้างกิจกรรมใหม่สำหรับ Admin" (Admin Create Activity Page)
+ * ทำหน้าที่ให้ผู้ใช้งานที่มีสิทธิ์ Admin กรอกข้อมูลกิจกรรมใหม่, ระบุตำแหน่งบนแผนที่ (Leaflet Map), กำหนดการย่อย, และอัปโหลดไฟล์สื่อเพื่อส่งคำขอสร้างกิจกรรมเข้าสู่ระบบ
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -15,53 +14,54 @@ import { activityService } from '../../Services/activity.service';
 import { locationService } from '../../Services/location.service';
 
 // Import Modal Component
-import ActivityModals, { type ModalStateType } from '../../Components/Modal';
+import Modal, { type ModalStateType } from '../../Components/Modal';
 
+// แก้ไขปัญหาไอคอน Marker ของ Leaflet หายใน React
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
 let DefaultIcon = L.icon({
-  iconUrl: icon, shadowUrl: iconShadow, iconAnchor: [12, 41]
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconAnchor: [12, 41]
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// ================= Map ภูมิภาคสำหรับ API ประเทศไทย =================
 const REGION_MAP: Record<number, string> = {
-  1: "ภาคเหนือ", 2: "ภาคกลาง", 3: "ภาคตะวันออกเฉียงเหนือ", 
+  1: "ภาคเหนือ", 2: "ภาคกลาง", 3: "ภาคตะวันออกเฉียงเหนือ",
   4: "ภาคตะวันตก", 5: "ภาคตะวันออก", 6: "ภาคใต้"
 };
 
-// ตั้งค่า Backend URL สำหรับรูปภาพให้เหมือนหน้า Detail
-const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'; 
-
-// ฟังก์ชันเช็คไฟล์อัปโหลดใหม่
-const isNewFile = (file: any) => file && typeof file === 'object' && 'name' in file && !file.id;
-
 /**
- * คำอธิบาย : Component ย่อยสำหรับจัดการการคลิกปักหมุดบนแผนที่ (Leaflet)
- * Input: position (พิกัด), setPosition, setFormData, setErrors
- * Output: หมุดแสดงตำแหน่งบนแผนที่
+ * คำอธิบาย : Component ย่อยสำหรับจัดการการคลิกเลือกพิกัดบนแผนที่ (Leaflet Map)
+ * Input: position (พิกัดปัจจุบัน), setPosition, setFormData, setErrors
+ * Output: หมุดตำแหน่ง (Marker) บนแผนที่
  */
 function LocationSelector({ position, setPosition, setFormData, setErrors }: any) {
   useMapEvents({
     click(e) {
       setPosition(e.latlng);
-      setFormData((prev: any) => ({ ...prev, latitude: String(e.latlng.lat), longitude: String(e.latlng.lng) }));
-      if (setErrors) setErrors((prev: any) => ({ ...prev, map: '' }));
+      setFormData((prev: any) => ({
+        ...prev,
+        latitude: String(e.latlng.lat),
+        longitude: String(e.latlng.lng)
+      }));
+      // ล้าง Error ของแผนที่เวลาปักหมุดแล้ว
+      setErrors((prev: any) => ({ ...prev, map: '' }));
     },
   });
   return position === null ? null : <Marker position={position}></Marker>;
 }
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอแก้ไขกิจกรรม
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอสร้างกิจกรรมของ Admin
  * Input: -
- * Output: UI ฟอร์มแก้ไขข้อมูลกิจกรรมพร้อมแผนที่และรายการไฟล์สื่อ
+ * Output: UI ฟอร์มสำหรับกรอกข้อมูลกิจกรรมสำหรับ Admin พร้อมระบบแผนที่และการอัปโหลดสื่อ
  */
-export default function EditActivityPage() {
+export default function AdminCreateActivityPage() {
   const navigate = useNavigate();
-  const { id } = useParams();
 
-  const [isLoadingData, setIsLoadingData] = useState(true);
   const [formData, setFormData] = useState({
     name: '', activityType: '', price: '', statusActivity: 'PUBLISH',
     tagline: '', description: '', phone: '', facebook: '', line: '',
@@ -70,29 +70,19 @@ export default function EditActivityPage() {
   });
 
   const [mapPosition, setMapPosition] = useState<{ lat: number, lng: number } | null>(null);
+
   const [thaiData, setThaiData] = useState<any[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   // State สำหรับเก็บ Error ของแต่ละช่อง
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ================= State สำหรับเก็บรูปเก่า/ใหม่ และ ID ที่ถูกลบ =================
-  type ExistingFile = { id: number, filePath: string };
-  const [coverFile, setCoverFile] = useState<File | ExistingFile | null>(null);
-  const [mediaFiles, setMediaFiles] = useState<(File | ExistingFile)[]>([]);
-  const [mediaDeleteIds, setMediaDeleteIds] = useState<number[]>([]);
-  const [scheduleDeleteIds, setScheduleDeleteIds] = useState<number[]>([]);
-  
-  type Timeslot = { id?: number, startTime: string, endTime: string, description: string, files: (File | ExistingFile)[], deleteFileIds: number[] };
-  type ScheduleDay = { date: string, timeslots: Timeslot[] };
-  const [schedules, setSchedules] = useState<ScheduleDay[]>([]);
-
   // ================= Modal State =================
   const [modalState, setModalState] = useState<ModalStateType>('none');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่อยู่ประเทศไทย (จังหวัด อำเภอ ตำบล)
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทยจาก locationService
    * Input: -
    * Output: -
    */
@@ -103,88 +93,13 @@ export default function EditActivityPage() {
         const data = await locationService.getThaiData();
         setThaiData(data);
       } catch (error) {
-        console.error("Error fetching Thai data:", error);
+        alert("ไม่สามารถดึงข้อมูลที่อยู่ได้ กรุณาตรวจสอบลิงก์ API หรืออินเทอร์เน็ต");
       } finally {
         setIsLoadingLocation(false);
       }
     };
     fetchThaiData();
   }, []);
-
-  // ดึงข้อมูลกิจกรรมผ่าน Service 
-  useEffect(() => {
-    const fetchActivityDetail = async () => {
-      if (!id) return;
-      try {
-        const responseData = await activityService.getActivityById(id);
-        const act = responseData.data || responseData; 
-        
-        const splitDateTime = (isoString: string) => {
-          if (!isoString) return { date: '', time: '' };
-          const d = new Date(isoString);
-          const date = [d.getFullYear(), ('0'+(d.getMonth()+1)).slice(-2), ('0'+d.getDate()).slice(-2)].join('-');
-          const time = [('0'+d.getHours()).slice(-2), ('0'+d.getMinutes()).slice(-2)].join(':');
-          return { date, time };
-        };
-
-        const start = splitDateTime(act.startDate);
-        const end = splitDateTime(act.dueDate);
-
-        setFormData({
-          name: act.name || '', activityType: act.activityType || '', price: act.price || '',
-          statusActivity: act.statusActivity || 'PUBLISH', tagline: act.tagline || '', description: act.description || '',
-          phone: act.phone || '', facebook: act.facebookUrl || '', line: act.lineUrl || '',
-          locationName: act.location?.name || '', region: act.location?.zone || '', province: act.location?.province || '',
-          district: act.location?.district || '', subDistrict: act.location?.subDistrict || '', addressDetail: act.location?.detail || '',
-          latitude: act.location?.latitude || '', longitude: act.location?.longitude || '',
-          startDate: start.date, startTime: start.time, endDate: end.date, endTime: end.time
-        });
-
-        if (act.location?.latitude && act.location?.longitude) {
-          setMapPosition({ lat: Number(act.location.latitude), lng: Number(act.location.longitude) });
-        }
-
-        const cover = act.activityFile?.find((f: any) => f.type === 'COVER');
-        if (cover) setCoverFile({ id: cover.id, filePath: cover.filePath }); 
-        
-        const gallery = act.activityFile?.filter((f: any) => f.type !== 'COVER').map((f: any) => ({ id: f.id, filePath: f.filePath })) || [];
-        setMediaFiles(gallery);
-
-        const formattedSchedules: ScheduleDay[] = [];
-        const tempDates: Record<string, Timeslot[]> = {};
-
-        act.schedules?.forEach((sch: any) => {
-           const schStart = splitDateTime(sch.startDateTime);
-           const schEnd = splitDateTime(sch.endDateTime);
-           const schDate = schStart.date;
-           
-           if (!tempDates[schDate]) tempDates[schDate] = [];
-           tempDates[schDate].push({
-             id: sch.id,
-             startTime: schStart.time,
-             endTime: schEnd.time,
-             description: sch.description || sch.title || '',
-             files: sch.files?.map((f: any) => ({ id: f.id, filePath: f.filePath })) || [],
-             deleteFileIds: []
-           });
-        });
-
-        Object.keys(tempDates).forEach(dateStr => {
-          formattedSchedules.push({ date: dateStr, timeslots: tempDates[dateStr] });
-        });
-        
-        setSchedules(formattedSchedules.length > 0 ? formattedSchedules : [{ date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [], deleteFileIds: [] }] }]);
-
-      } catch (error) {
-        console.error("Fetch Activity Error:", error);
-        alert("ไม่สามารถดึงข้อมูลกิจกรรมได้");
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-
-    fetchActivityDetail();
-  }, [id]);
 
   const regionOptions = Array.from(new Set(thaiData.map(p => REGION_MAP[p.geography_id]))).filter(Boolean);
   const availableProvinces = thaiData.filter(p => REGION_MAP[p.geography_id] === formData.region);
@@ -193,6 +108,7 @@ export default function EditActivityPage() {
   const selectedDistrictObj = availableDistricts.find((a: any) => a.name_th === formData.district);
   const availableSubDistricts = selectedDistrictObj ? (selectedDistrictObj.sub_districts || selectedDistrictObj.tambon || []) : [];
 
+  // เคลียร์ Error เวลามีการเลือกข้อมูลใหม่
   const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFormData(prev => ({ ...prev, region: e.target.value, province: '', district: '', subDistrict: '' }));
     if (errors.region) setErrors(prev => ({ ...prev, region: '' }));
@@ -207,12 +123,14 @@ export default function EditActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดการการเปลี่ยนแปลงค่าในฟอร์ม (Input, Select, Textarea)
+   * คำอธิบาย : ฟังก์ชันจัดการการเปลี่ยนแปลงค่าในฟอร์ม พร้อมตรวจสอบและจำกัดรูปแบบข้อมูลเบอร์โทรศัพท์
    * Input: e (Event)
    * Output: -
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // ดักจับเฉพาะเบอร์โทรศัพท์ ให้กรอกได้แค่ตัวเลข และจำกัดแค่ 10 หลัก
     if (name === 'phone') {
       const onlyNums = value.replace(/[^0-9]/g, '');
       if (onlyNums.length <= 10) {
@@ -221,52 +139,42 @@ export default function EditActivityPage() {
       }
       return; 
     }
+
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const addDay = () => setSchedules([...schedules, { date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [], deleteFileIds: [] }] }]);
-  
-  const removeDay = (dayIndex: number) => {
-    const dayToRemove = schedules[dayIndex];
-    const deletedIds: number[] = [];
-    
-    dayToRemove.timeslots.forEach(slot => { 
-        if (slot.id) deletedIds.push(slot.id); 
-    });
-    
-    if (deletedIds.length > 0) setScheduleDeleteIds(prev => [...prev, ...deletedIds]); 
-    setSchedules(schedules.filter((_, i) => i !== dayIndex));
-  };
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
 
+  type Timeslot = { startTime: string, endTime: string, description: string, files: File[] };
+  type ScheduleDay = { date: string, timeslots: Timeslot[] };
+  const [schedules, setSchedules] = useState<ScheduleDay[]>([
+    { date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [] }] }
+  ]);
+
+  const addDay = () => setSchedules([...schedules, { date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [] }] }]);
+  const removeDay = (dayIndex: number) => setSchedules(schedules.filter((_, i) => i !== dayIndex));
   const addTimeSlot = (dayIndex: number) => {
     const newSchedules = [...schedules];
-    newSchedules[dayIndex].timeslots.push({ startTime: '', endTime: '', description: '', files: [], deleteFileIds: [] });
+    newSchedules[dayIndex].timeslots.push({ startTime: '', endTime: '', description: '', files: [] });
     setSchedules(newSchedules);
   };
-
   const removeTimeSlot = (dayIndex: number, slotIndex: number) => {
     const newSchedules = [...schedules];
-    const slotToRemove = newSchedules[dayIndex].timeslots[slotIndex];
-    
-    if (slotToRemove.id) setScheduleDeleteIds(prev => [...prev, slotToRemove.id!]);
-    
     newSchedules[dayIndex].timeslots.splice(slotIndex, 1);
     setSchedules(newSchedules);
   };
-
   const handleScheduleChange = (dayIndex: number, field: 'date', value: string) => {
     const newSchedules = [...schedules];
     newSchedules[dayIndex][field] = value;
     setSchedules(newSchedules);
   };
-
   const handleTimeSlotChange = (dayIndex: number, slotIndex: number, field: keyof Timeslot, value: string) => {
     const newSchedules = [...schedules];
     (newSchedules[dayIndex].timeslots[slotIndex] as any)[field] = value;
     setSchedules(newSchedules);
   };
-  
   const handleScheduleFileChange = (dayIndex: number, slotIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
@@ -280,63 +188,10 @@ export default function EditActivityPage() {
       }
     }
   };
-  
   const removeScheduleFile = (dayIndex: number, slotIndex: number, fileIdx: number) => {
     const newSchedules = [...schedules];
-    const currentSlot = { ...newSchedules[dayIndex].timeslots[slotIndex] };
-    const fileToRemove = currentSlot.files[fileIdx];
-    
-    if (fileToRemove && (fileToRemove as ExistingFile).id) {
-        currentSlot.deleteFileIds = [...currentSlot.deleteFileIds, (fileToRemove as ExistingFile).id];
-    }
-    
-    currentSlot.files = currentSlot.files.filter((_, i) => i !== fileIdx);
-    newSchedules[dayIndex].timeslots[slotIndex] = currentSlot;
+    newSchedules[dayIndex].timeslots[slotIndex].files.splice(fileIdx, 1);
     setSchedules(newSchedules);
-  };
-
-  const removeMediaFile = (idx: number) => {
-    const fileToRemove = mediaFiles[idx];
-    if (fileToRemove && (fileToRemove as ExistingFile).id) {
-        setMediaDeleteIds(prev => [...prev, (fileToRemove as ExistingFile).id]);
-    }
-    setMediaFiles(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  /**
-   * คำอธิบาย : ฟังก์ชันดึง URL ตัวอย่างของไฟล์ภาพหรือวิดีโอ (รองรับทั้งไฟล์ใหม่และไฟล์เก่าจากระบบ)
-   * Input: file (File | ExistingFile)
-   * Output: string (URL สำหรับแสดงผล)
-   */
-  const getFilePreview = (file: any) => {
-    if (!file) return '';
-    
-    // ถ้าเป็นไฟล์ใหม่
-    if (isNewFile(file)) return URL.createObjectURL(file as Blob);
-    
-    // ถ้าเป็นไฟล์เก่าจาก Backend
-    let path = typeof file === 'string' ? file : file.filePath;
-    if (!path) return '';
-
-    if (path.startsWith('http') || path.startsWith('data:image')) return path;
-    let cleanPath = path.replace(/\\/g, '/');
-    if (!cleanPath.includes('uploads/')) cleanPath = `uploads/${cleanPath.replace(/^\//, '')}`;
-    
-    return `${BACKEND_URL}/${cleanPath.replace(/^\//, '')}?t=${new Date().getTime()}`;
-  };
-
-  /**
-   * คำอธิบาย : ตรวจสอบว่าไฟล์นั้นเป็นวิดีโอหรือไม่
-   * Input: file (File | ExistingFile)
-   * Output: boolean
-   */
-  const isVideoFile = (file: any) => {
-    if (!file) return false;
-    if (isNewFile(file)) return file.type.startsWith('video/');
-    
-    const path = typeof file === 'string' ? file : (file.filePath || '');
-    const cleanPath = path.split('?')[0]; 
-    return cleanPath.match(/\.(mp4|mov|m4v|webm)$/i) !== null;
   };
 
   /**
@@ -377,31 +232,32 @@ export default function EditActivityPage() {
     if (!coverFile) newErrors.cover = "กรุณาอัปโหลดภาพโปสเตอร์กิจกรรม (Cover)";
 
     setErrors(newErrors);
+
     return Object.keys(newErrors).length === 0;
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่มบันทึก เพื่อทำการ Validate ก่อนเปิด Modal ยืนยัน
+   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่มสร้างกิจกรรม ทำการ Validate ฟอร์มก่อนเปิด Modal ยืนยัน
    * Input: e (Event)
    * Output: -
    */
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      setModalState('confirmEdit'); // เรียก Shared Modal 
+      setModalState('confirmCreate'); // เปิด Modal ยืนยันจากส่วนกลาง
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและส่งคำขออัปเดตข้อมูลกิจกรรมไปยัง Backend ผ่าน activityService
+   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและส่งคำขอสร้างกิจกรรมสำหรับ Admin ผ่านทาง activityService
    * Input: -
    * Output: -
    */
   const confirmSubmit = async () => {
     setModalState('processing');
-    setIsProcessing(true); 
+    setIsProcessing(true);
 
     try {
       const formDataToSend = new FormData();
@@ -411,14 +267,12 @@ export default function EditActivityPage() {
       schedules.forEach(day => {
         day.timeslots.forEach(slot => {
           const fileIndexes: number[] = [];
-          
           slot.files.forEach(file => {
-            if (isNewFile(file)) {
-               flatScheduleFiles.push(file as File);
-               fileIndexes.push(flatScheduleFiles.length - 1);
-            }
+            flatScheduleFiles.push(file);
+            fileIndexes.push(flatScheduleFiles.length - 1);
           });
           
+          // แปลงวันที่และเวลาของ Schedule ให้เป็นแบบ ISO String 
           const startDateTime = day.date && slot.startTime 
             ? new Date(`${day.date}T${slot.startTime}:00`).toISOString()
             : "";
@@ -427,17 +281,16 @@ export default function EditActivityPage() {
             : "";
 
           formattedSchedules.push({
-            id: slot.id, 
             title: slot.description || "กิจกรรมย่อย",
             description: slot.description,
             startDateTime: startDateTime,
             endDateTime: endDateTime,
-            fileIndexes: fileIndexes.length > 0 ? fileIndexes : undefined, 
-            deleteFileIds: slot.deleteFileIds.length > 0 ? slot.deleteFileIds : undefined 
+            fileIndexes: fileIndexes.length > 0 ? fileIndexes : undefined
           });
         });
       });
 
+      // ดึงแค่วันที่ (YYYY-MM-DD) สำหรับ startDate และ dueDate ของกิจกรรมหลัก
       const activityStartDate = formData.startDate 
         ? new Date(`${formData.startDate}`).toISOString().split('T')[0] 
         : "";
@@ -453,7 +306,7 @@ export default function EditActivityPage() {
           district: formData.district, 
           subDistrict: formData.subDistrict, 
           detail: formData.addressDetail,
-          latitude: Number(formData.latitude), 
+          latitude: Number(formData.latitude),
           longitude: Number(formData.longitude)
         },
         name: formData.name, 
@@ -464,36 +317,23 @@ export default function EditActivityPage() {
         lineUrl: formData.line || undefined, 
         facebookUrl: formData.facebook || undefined, 
         price: formData.price ? Number(formData.price) : 0, 
-        statusActivity: formData.statusActivity,
+        statusActivity: formData.statusActivity, 
         startDate: activityStartDate,
         dueDate: activityDueDate,
-        schedules: formattedSchedules,
-        mediaDeleteIds: mediaDeleteIds.length > 0 ? mediaDeleteIds : undefined, 
-        scheduleDeleteIds: scheduleDeleteIds.length > 0 ? scheduleDeleteIds : undefined,
+        schedules: formattedSchedules
       };
 
       formDataToSend.append("activity", JSON.stringify(activityJson));
-      
-      if (isNewFile(coverFile)) {
-          formDataToSend.append("cover", coverFile as Blob);
-      }
-      
-      mediaFiles.forEach(file => {
-          if (isNewFile(file)) formDataToSend.append("media", file as Blob);
-      });
-      
-      flatScheduleFiles.forEach(file => {
-          formDataToSend.append("scheduleFiles", file);
-      });
+      if (coverFile) formDataToSend.append("cover", coverFile);
+      mediaFiles.forEach(file => formDataToSend.append("media", file));
+      flatScheduleFiles.forEach(file => formDataToSend.append("scheduleFiles", file));
 
-      if (id) {
-        await activityService.updateActivity(id, formDataToSend);
-      }
+      await activityService.createAdminActivity(formDataToSend);
 
-      setModalState('successEdit');
+      setModalState('successCreate');
 
     } catch (error: any) {
-      alert(`เกิดข้อผิดพลาด: ${error.response?.data?.message || error.message}`);
+      alert(`เกิดข้อผิดพลาดในการสร้างกิจกรรม: ${error.response?.data?.message || error.message}`);
       setModalState('none');
     } finally {
       setIsProcessing(false);
@@ -501,13 +341,13 @@ export default function EditActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดการหลังบันทึกสำเร็จ นำผู้ใช้งานกลับสู่หน้าหลักของกิจกรรม
+   * คำอธิบาย : ฟังก์ชันจัดการหลังจากบันทึกสำเร็จ นำผู้ใช้งานกลับไปที่หน้าจัดการกิจกรรมของ Admin
    * Input: -
    * Output: -
    */
   const handleSuccessClose = () => {
     setModalState('none');
-    navigate('/superadmin/activity');
+    navigate('/admin/activity');
   };
 
   const Label = ({ title, required = false }: { title: string, required?: boolean }) => (
@@ -523,13 +363,12 @@ export default function EditActivityPage() {
       : `${baseClass} border-gray-300 focus:border-[#712874] bg-white`;
   };
 
-  if (isLoadingData) return <div className="p-10 text-center text-gray-500">กำลังดึงข้อมูลกิจกรรม...</div>;
-
   return (
     <div className="w-full space-y-6 pb-10 relative">
-      <h1 className="text-[24px] font-bold text-[#712874]">แก้ไขกิจกรรม</h1>
+      <h1 className="text-[24px] font-bold text-[#712874]">สร้างกิจกรรมใหม่</h1>
 
       <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm border border-gray-100">
+        
         <form onSubmit={handlePreSubmit} className="space-y-12" noValidate>
           
           {/* ================= ข้อมูลทั่วไปของกิจกรรม ================= */}
@@ -587,20 +426,14 @@ export default function EditActivityPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <Label title="เบอร์โทรศัพท์" required />
-                <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="กรอกเบอร์โทรศัพท์" className={getInputClass('phone')} />
+                <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="กรอกเบอร์โทรศัพท์ (ตัวเลข 10 หลัก)" className={getInputClass('phone')} />
                 {errors.phone && <p className="text-red-500 text-[13px] mt-1.5">{errors.phone}</p>}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label title="Link Facebook" />
-                <input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="กรอก URL Facebook" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#712874]" />
-              </div>
-              <div>
-                <Label title="Link Line" />
-                <input type="text" name="line" value={formData.line} onChange={handleChange} placeholder="กรอก URL Line" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#712874]" />
-              </div>
+              <div><Label title="Link Facebook" /><input type="text" name="facebook" value={formData.facebook} onChange={handleChange} placeholder="กรอก URL Facebook" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#712874]" /></div>
+              <div><Label title="Link Line" /><input type="text" name="line" value={formData.line} onChange={handleChange} placeholder="กรอก URL Line" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#712874]" /></div>
             </div>
           </section>
 
@@ -673,7 +506,7 @@ export default function EditActivityPage() {
             <div>
               <Label title="คลิกเลือกตำแหน่งบนแผนที่ (OpenStreetMap)" />
               <div className={`w-full h-[350px] bg-gray-100 rounded-xl overflow-hidden border ${errors.map ? 'border-red-500 ring-2 ring-red-500/30' : 'border-gray-300'} z-0`}>
-                <MapContainer center={[mapPosition?.lat || 13.736717, mapPosition?.lng || 100.523186]} zoom={13} style={{ width: '100%', height: '100%' }}>
+                <MapContainer center={[13.736717, 100.523186]} zoom={13} style={{ width: '100%', height: '100%' }}>
                   <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   <LocationSelector position={mapPosition} setPosition={setMapPosition} setFormData={setFormData} setErrors={setErrors} />
                 </MapContainer>
@@ -744,11 +577,10 @@ export default function EditActivityPage() {
                       {slot.files.map((file, fIdx) => (
                          <div key={fIdx} className="relative w-[100px] h-[70px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 overflow-hidden">
                            <button type="button" onClick={() => removeScheduleFile(dayIndex, slotIndex, fIdx)} className="absolute top-1 right-1 z-10 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">✕</button>
-                           
-                           { isVideoFile(file) ? (
-                              <video src={getFilePreview(file)} className="w-full h-full object-contain bg-black" controls preload="metadata" />
+                           {file.type.startsWith('video/') ? (
+                              <video src={URL.createObjectURL(file)} className="w-full h-full object-contain bg-black" controls preload="metadata" />
                            ) : (
-                              <img src={getFilePreview(file)} alt="schedule" className="w-full h-full object-cover" />
+                              <img src={URL.createObjectURL(file)} alt="schedule" className="w-full h-full object-cover" />
                            )}
                          </div>
                       ))}
@@ -778,12 +610,11 @@ export default function EditActivityPage() {
                 <div className="absolute -left-[33px] top-1 w-4 h-4 rounded-full bg-[#F59E0B] border-4 border-white shadow-sm"></div>
                 <div>
                   <Label title="อัปโหลดภาพโปสเตอร์กิจกรรม (Cover)" required />
-                  
                   <div className="flex flex-wrap gap-3 mt-2">
                     {coverFile ? (
                       <div className="relative w-[140px] h-[100px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 overflow-hidden">
                         <button type="button" onClick={() => setCoverFile(null)} className="absolute top-1 right-1 z-10 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">✕</button>
-                        <img src={getFilePreview(coverFile)} alt="cover" className="w-full h-full object-cover" />
+                        <img src={URL.createObjectURL(coverFile)} alt="cover" className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <label className={`w-[140px] h-[100px] border-2 border-dashed ${errors.cover ? 'border-red-500 bg-red-50' : 'border-gray-400 bg-white hover:bg-gray-50'} rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer relative`}>
@@ -806,26 +637,17 @@ export default function EditActivityPage() {
                 <div className="absolute -left-[33px] top-1 w-4 h-4 rounded-full bg-[#F59E0B] border-4 border-white shadow-sm"></div>
                 <div>
                   <Label title="อัปโหลดภาพและวิดีโอเพิ่มเติมของกิจกรรม" />
-                  
                   <div className="flex flex-wrap gap-3 mt-2">
                     {mediaFiles.map((file, idx) => (
                       <div key={idx} className="relative w-[140px] h-[100px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 overflow-hidden">
-                        <button type="button" onClick={() => removeMediaFile(idx)} className="absolute top-1 right-1 z-10 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">✕</button>
-                        
-                        { isVideoFile(file) ? (
-                          <video 
-                            src={getFilePreview(file)} 
-                            className="w-full h-full object-contain bg-black" 
-                            controls 
-                            preload="metadata" 
-                          />
+                        <button type="button" onClick={() => setMediaFiles(prev => prev.filter((_, i) => i !== idx))} className="absolute top-1 right-1 z-10 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">✕</button>
+                        {file.type.startsWith('video/') ? (
+                          <video src={URL.createObjectURL(file)} className="w-full h-full object-contain bg-black" controls preload="metadata" />
                         ) : (
-                          <img src={getFilePreview(file)} alt="media" className="w-full h-full object-cover" />
+                          <img src={URL.createObjectURL(file)} alt="media" className="w-full h-full object-cover" />
                         )}
-                        
                       </div>
                     ))}
-                    
                     {mediaFiles.length < 4 && (
                       <label className="w-[140px] h-[100px] border-2 border-dashed border-gray-400 rounded-lg flex flex-col items-center justify-center text-gray-500 cursor-pointer hover:bg-gray-50 bg-white relative">
                         <div className="flex space-x-2 mb-1">
@@ -851,12 +673,13 @@ export default function EditActivityPage() {
             </div>
           </section>
 
+          {/* ================= Footer Actions ================= */}
           <div className="flex justify-end items-center space-x-4 pt-8 border-t border-gray-200">
-            <button type="button" onClick={() => navigate('/superadmin/activity')} className="px-6 py-2.5 rounded-xl text-sm font-medium border text-gray-700 hover:bg-gray-50 bg-white">
+            <button type="button" onClick={() => navigate('/admin/activity')} className="px-6 py-2.5 rounded-xl text-sm font-medium border text-gray-700 hover:bg-gray-50 bg-white">
               ยกเลิก
             </button>
             <button type="submit" className="bg-[#712874] text-white font-medium px-8 py-2.5 rounded-xl text-sm shadow-sm hover:bg-purple-900 transition-colors">
-              บันทึกการแก้ไข
+              สร้างกิจกรรม
             </button>
           </div>
 
@@ -864,12 +687,12 @@ export default function EditActivityPage() {
       </div>
 
       {/* ================= Modal Component ================= */}
-      <ActivityModals 
+      <Modal
         modalState={modalState} 
         setModalState={setModalState} 
         isProcessing={isProcessing}
-        handleApprove={confirmSubmit} // ส่งฟังก์ชันไปให้ปุ่มยืนยัน
-        handleSuccessClose={handleSuccessClose} // ส่งฟังก์ชันไปให้ปุ่มปิด (เพื่อนากลับหน้าหลัก)
+        handleApprove={confirmSubmit}
+        handleSuccessClose={handleSuccessClose}
       />
 
     </div>

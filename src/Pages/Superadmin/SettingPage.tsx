@@ -1,49 +1,67 @@
+/**
+ * คำอธิบาย : Component สำหรับหน้าจอ "การตั้งค่าระบบ" (Setting Page)
+ * ทำหน้าที่จัดการตั้งค่าสถานะเปิด/ปิดระบบ (Online) และการจัดการรูปภาพแบนเนอร์หน้าแรก (Banner Management) เช่น การอัปโหลดเพิ่มและการลบรูปภาพ
+ */
+
 import React, { useState, useEffect } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 
+// Import Services
+import { settingService } from '../../Services/setting.service';
+
+// Import Modal Component
+import Modal, { type ModalStateType } from '../../Components/Modal';
+
+/**
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอการตั้งค่า
+ * Input: -
+ * Output: UI จัดการเปิด/ปิดระบบ และแผงควบคุมอัปโหลด/ลบรูปภาพ Banner
+ */
 export default function SettingPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [banners, setBanners] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // ================= Delete Modal State =================
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
+  // ================= Modal States =================
+  const [modalState, setModalState] = useState<ModalStateType>('none');
   const [bannerToDelete, setBannerToDelete] = useState<number | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  // ดึง Token
-  const token = localStorage.getItem('token') || ""; 
-  
-  const API_BASE_URL = "http://localhost:3000/api";
-  const IMAGE_BASE_URL = "http://localhost:3000";
+  const IMAGE_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:3000";
 
+  /**
+   * คำอธิบาย : Hook สำหรับดึงรายการรูปภาพ Banner เมื่อโหลดหน้าเว็บครั้งแรก
+   * Input: -
+   * Output: -
+   */
   useEffect(() => {
     fetchBanners();
   }, []);
 
+  /**
+   * คำอธิบาย : ฟังก์ชันดึงรายการรูปภาพ Banner จาก Backend ผ่าน settingService
+   * Input: -
+   * Output: -
+   */
   const fetchBanners = async () => {
-    if (!token) return;
-
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin/banners`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.status === 401) {
-        console.error("Unauthorized: กรุณาเข้าสู่ระบบใหม่");
-        return;
-      }
-
-      const result = await response.json();
+      const result = await settingService.getBanners();
       if (!result.error) {
         setBanners(result.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching banners:", error);
+      if (error.response && error.response.status === 401) {
+        console.error("Unauthorized: กรุณาเข้าสู่ระบบใหม่");
+      }
     }
   };
 
+  /**
+   * คำอธิบาย : ฟังก์ชันอัปโหลดรูปภาพ Banner ใหม่เข้าสู่ระบบ
+   * Input: e (ChangeEvent ของ Input File)
+   * Output: -
+   */
   const handleUploadBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -54,91 +72,81 @@ export default function SettingPage() {
     }
 
     setIsLoading(true);
-    const formData = new FormData();
-    formData.append("banner", file);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin/banner`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (response.status === 401) {
-        alert("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
-        setIsLoading(false);
-        return;
-      }
-
-      const result = await response.json();
+      const result = await settingService.uploadBanner(file);
       if (!result.error) {
         fetchBanners();
       } else {
         alert(result.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading banner:", error);
+      if (error.response && error.response.status === 401) {
+        alert("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่");
+      } else {
+        alert(error.response?.data?.message || "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+      }
     } finally {
       setIsLoading(false);
+      e.target.value = '';
     }
   };
 
   // ================= Delete Handlers =================
+
+  /**
+   * คำอธิบาย : ฟังก์ชันเปิดหน้าต่างยืนยันการลบรูปภาพ Banner
+   * Input: id (number) - รหัสประจำตัวของรูปภาพที่ต้องการลบ
+   * Output: -
+   */
   const openDeleteConfirm = (id: number) => {
     setBannerToDelete(id);
-    setIsConfirmModalOpen(true);
+    setModalState('confirmDeleteBanner');
   };
 
-  const closeConfirmModal = () => {
-    setIsConfirmModalOpen(false);
-    setBannerToDelete(null);
-  };
-
+  /**
+   * คำอธิบาย : ฟังก์ชันยืนยันการลบรูปภาพ Banner ผ่าน settingService
+   * Input: -
+   * Output: -
+   */
   const handleDeleteBanner = async () => {
     if (bannerToDelete === null) return;
     
-    setIsDeleting(true);
+    setIsProcessing(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/superadmin/banner/${bannerToDelete}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const result = await settingService.deleteBanner(bannerToDelete);
 
-      const result = await response.json();
       if (!result.error) {
         setBanners(prev => prev.filter(item => item.id !== bannerToDelete));
-        setIsConfirmModalOpen(false);
-        setIsSuccessModalOpen(true);
+        setModalState('successDeleteBanner');
       } else {
         alert(result.message || "ลบรูปภาพไม่สำเร็จ");
+        setModalState('none');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting banner:", error);
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      alert(error.response?.data?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      setModalState('none');
     } finally {
-      setIsDeleting(false);
+      setIsProcessing(false);
       setBannerToDelete(null);
     }
   };
 
-  const closeSuccessModal = () => {
-    setIsSuccessModalOpen(false);
-  };
-
+  /**
+   * คำอธิบาย : ฟังก์ชันสร้างและปรับปรุง URL ของรูปภาพให้พร้อมสำหรับแสดงผล
+   * Input: imagePath (string) - เส้นทางของรูปภาพจาก Backend
+   * Output: string (URL เต็มพร้อมพารามิเตอร์ป้องกันการแคช)
+   */
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return '';
-    
     let cleanPath = imagePath.replace(/\\/g, '/');
-
     if (!cleanPath.includes('uploads/')) {
       cleanPath = cleanPath.startsWith('/') ? `uploads${cleanPath}` : `uploads/${cleanPath}`;
     }
-
-    const finalUrl = cleanPath.startsWith('/') 
-      ? `${IMAGE_BASE_URL}${cleanPath}` 
-      : `${IMAGE_BASE_URL}/${cleanPath}`;
-      
-    return finalUrl;
+    const finalUrl = cleanPath.startsWith('/') ? `${IMAGE_BASE_URL}${cleanPath}` : `${IMAGE_BASE_URL}/${cleanPath}`;
+    return `${finalUrl}?t=${new Date().getTime()}`;
   };
 
   return (
@@ -147,12 +155,11 @@ export default function SettingPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
         
-        {/* Section 1: เปิด/ปิดระบบ */}
+        {/* Section เปิด/ปิดระบบ */}
         <section className="mb-10">
           <h3 className="text-[16px] font-bold text-[#712874] mb-4">การเปิด / ปิดระบบ</h3>
           <div className="flex items-center gap-4">
             <span className="text-[14px] text-gray-600 font-medium">เปิดให้บริการ (Online)</span>
-            {/* Toggle Switch */}
             <button 
               onClick={() => setIsOnline(!isOnline)}
               className={`w-14 h-7 rounded-full p-1 transition-colors relative flex items-center ${isOnline ? 'bg-[#712874]' : 'bg-gray-300'}`}
@@ -162,7 +169,7 @@ export default function SettingPage() {
           </div>
         </section>
 
-        {/* Section 2: เพิ่ม/แก้ไขรูปภาพ */}
+        {/* Section เพิ่ม/แก้ไขรูปภาพ */}
         <section>
           <h3 className="text-[16px] font-bold text-[#712874] mb-4">การเพิ่ม / แก้ไขรูปภาพ</h3>
           
@@ -183,9 +190,7 @@ export default function SettingPage() {
                     src={getImageUrl(banner.image)} 
                     alt="Banner" 
                     className="w-full h-full object-cover" 
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://placehold.co/192x128?text=Image+Not+Found';
-                    }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/192x128?text=Image+Not+Found'; }}
                   />
                   <button 
                     onClick={() => openDeleteConfirm(banner.id)}
@@ -218,61 +223,13 @@ export default function SettingPage() {
 
       </div>
 
-      {/* ================= Modal ยืนยันการลบแบนเนอร์ ================= */}
-      {isConfirmModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            
-            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
-              <span className="text-[36px] font-bold text-black leading-none">!</span>
-            </div>
-            
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ยืนยันการลบรูปภาพ</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">คุณต้องการยืนยันการลบรูปภาพนี้หรือไม่</p>
-            
-            <div className="flex space-x-4 w-full justify-center">
-              <button 
-                onClick={closeConfirmModal}
-                disabled={isDeleting}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                onClick={handleDeleteBanner}
-                disabled={isDeleting}
-                className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] transition-colors w-[120px] flex justify-center items-center"
-              >
-                {isDeleting ? 'กำลังลบ...' : 'ยืนยัน'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= Modal ลบสำเร็จ ================= */}
-      {isSuccessModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            
-            <div className="w-[76px] h-[76px] rounded-full bg-[#6B2A68] flex items-center justify-center mb-6 shadow-inner">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-            
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ลบรูปภาพสำเร็จ</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">รูปภาพถูกลบออกจากระบบแล้ว</p>
-            
-            <button 
-              onClick={closeSuccessModal}
-              className="px-8 py-2.5 bg-[#4A154B] text-white rounded-lg text-[14px] font-medium hover:bg-[#340f35] transition-colors w-[140px]"
-            >
-              ปิด
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Modal */}
+      <Modal 
+        modalState={modalState} 
+        setModalState={setModalState} 
+        isProcessing={isProcessing}
+        handleDeleteBanner={handleDeleteBanner} 
+      />
 
     </div>
   );

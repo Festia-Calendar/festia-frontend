@@ -1,25 +1,44 @@
+/**
+ * คำอธิบาย : Component สำหรับแสดงหน้ารายละเอียดประวัติกิจกรรม (History Activity Detail Page)
+ * ทำหน้าที่แสดงข้อมูลย้อนหลังของกิจกรรมที่เสร็จสิ้นหรือถูกจัดการแล้ว พร้อมส่วนแสดงสื่อ รูปภาพ วิดีโอ และกำหนดการ
+ */
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../Libs/axios';
+
+// Import Services
+import { activityService } from '../../Services/activity.service';
+
+// Import Component
+import ActivityMediaViewer from '../../Components/ActivityMediaViewer';
 
 // ⭐ Import รูปภาพ Facebook และ Line จาก assets
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
-export default function HistoryDetailActivityPage() {
+/**
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้ารายละเอียดประวัติกิจกรรม
+ * Input: -
+ * Output: UI แสดงรายละเอียดประวัติกิจกรรม พร้อมข้อมูลสถานที่, โซเชียลมีเดีย, รายละเอียด และกำหนดการ
+ */
+export default function DetailHistoryActivityPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // State สำหรับมีเดียหลักที่แสดงอยู่ (สลับเมื่อคลิก Thumbnail)
-  const [activeImage, setActiveImage] = useState<string>('');
+  // State สำหรับเปิด Modal ดูรูปใหญ่ของส่วนกำหนดการ (Schedule)
+  const [previewScheduleImage, setPreviewScheduleImage] = useState<string | null>(null);
 
-  // State สำหรับเปิด Modal ดูรูปใหญ่
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-
-  const BACKEND_URL = 'http://localhost:3000'; 
+  // ตั้งค่า Backend URL สำหรับรูปภาพ
+  const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'; 
   
+  /**
+   * คำอธิบาย : แปลงและจัดการ URL ของรูปภาพเพื่อให้สามารถแสดงผลได้ถูกต้อง
+   * Input: path (string) - เส้นทางของไฟล์รูปภาพ
+   * Output: string (URL ที่สมบูรณ์สำหรับนำไปใช้งาน)
+   */
   const getImageUrl = (path: string) => {
     if (!path) return '';
     if (path.startsWith('http') || path.startsWith('data:image')) {
@@ -32,55 +51,74 @@ export default function HistoryDetailActivityPage() {
     return `${BACKEND_URL}/${cleanPath.replace(/^\//, '')}`;
   };
 
-  // ฟังก์ชันเช็คไฟล์วิดีโอ
+  /**
+   * คำอธิบาย : ตรวจสอบว่าไฟล์ใน path นั้นเป็นไฟล์วิดีโอหรือไม่ จากนามสกุลไฟล์
+   * Input: path (string)
+   * Output: boolean (True หากเป็นวิดีโอ, False หากไม่ใช่)
+   */
   const isVideoFile = (path: string) => {
     if (!path) return false;
     const cleanPath = path.split('?')[0]; 
     return cleanPath.match(/\.(mp4|mov|m4v|webm)$/i) !== null;
   };
 
+  /**
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลรายละเอียดประวัติกิจกรรมจาก Backend (API) ตาม ID ที่รับมาจาก URL
+   * Input: -
+   * Output: -
+   */
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const response = await api.get(`/superadmin/activity/${id}`);
-        const activityData = response.data.data || response.data;
-        setData(activityData);
-
-        // ตั้งค่ารูป/วิดีโอปกเริ่มต้นเมื่อโหลดข้อมูลเสร็จ
-        const cover = activityData.activityFile?.find((f: any) => f.type === 'COVER')?.filePath;
-        if (cover) {
-          setActiveImage(cover);
-        } else {
-          const firstMedia = activityData.activityFile?.filter((f: any) => f.type === 'GALLERY' || f.type === 'VIDEO')?.[0]?.filePath;
-          if (firstMedia) setActiveImage(firstMedia);
-        }
-
+        if (!id) return;
+        const responseData = await activityService.getActivityById(id);
+        setData(responseData.data || responseData);
       } catch (error) {
         console.error("Fetch detail error:", error);
       } finally {
         setLoading(false);
       }
     };
-    if (id) fetchDetail(); else setLoading(false);
+    fetchDetail();
   }, [id]);
 
+  /**
+   * คำอธิบาย : จัดรูปแบบวันที่แบบเฉพาะวัน (พ.ศ.)
+   * Input: dateString (string)
+   * Output: string (ตัวอย่าง: 1 ม.ค. 2569)
+   */
   const formatThaiDateOnly = (dateString: string) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  /**
+   * คำอธิบาย : จัดรูปแบบเวลา (ชั่วโมง:นาที)
+   * Input: dateString (string)
+   * Output: string (ตัวอย่าง: 13:30)
+   */
   const formatThaiTime = (dateString: string) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
   };
 
+  /**
+   * คำอธิบาย : จัดรูปแบบวันที่และเวลาเต็มรูปแบบในภาษาไทย
+   * Input: dateString (string)
+   * Output: string (ตัวอย่าง: 1 ม.ค. 2569 13:30 น.)
+   */
   const formatThaiDateTime = (dateString: string) => {
     if (!dateString) return '-';
     return `${formatThaiDateOnly(dateString)} ${formatThaiTime(dateString)} น.`;
   };
 
+  /**
+   * คำอธิบาย : จัดรูปแบบช่วงวันเวลาสำหรับกำหนดการย่อยของประวัติกิจกรรม
+   * Input: start (string), end (string)
+   * Output: string (ตัวอย่าง: 1 ม.ค. 13:30 - 15:00 น.)
+   */
   const formatScheduleDateTime = (start: string, end: string) => {
     if (!start || !end) return '-';
     const startDate = new Date(start);
@@ -90,16 +128,15 @@ export default function HistoryDetailActivityPage() {
     return `${datePart} ${startTime} - ${endTime} น.`;
   };
 
-  const activity = data;
-
   if (loading) {
     return <p className="text-center text-gray-500 mt-10">กำลังโหลดข้อมูล...</p>;
   }
 
-  if (!activity) {
+  if (!data) {
     return <p className="text-center text-gray-500 mt-10">ไม่พบข้อมูลกิจกรรม</p>;
   }
 
+  const activity = data;
   const allMedia = activity.activityFile?.filter((f: any) => f.type === 'COVER' || f.type === 'GALLERY' || f.type === 'VIDEO') || [];
 
   return (
@@ -119,7 +156,7 @@ export default function HistoryDetailActivityPage() {
         <h1 className="text-[24px] font-bold text-[#712874]">รายละเอียดประวัติกิจกรรม</h1>
       </div>
 
-      {/* 🔴 กล่องแจ้งเตือนกรณีถูกปฏิเสธ (REJECTED) */}
+      {/* กล่องแจ้งเตือนกรณีถูกปฏิเสธ (REJECTED) */}
       {activity.statusApprove === 'REJECTED' && (
         <div className="bg-[#FFF5F5] border border-red-200 rounded-2xl p-6 flex items-start space-x-4 shadow-sm">
           <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0 text-red-600 mt-0.5">
@@ -137,154 +174,102 @@ export default function HistoryDetailActivityPage() {
         </div>
       )}
       
-      {/* 1. Header Section */}
+      {/* Header Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
-        {/* Poster Left */}
-        <div className="md:col-span-5 lg:col-span-4 flex flex-col space-y-3">
-          <div className="w-full aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden relative shadow-md flex items-center justify-center">
-            {activeImage ? (
-              isVideoFile(activeImage) ? (
-                <video 
-                  src={getImageUrl(activeImage)} 
-                  className="w-full h-full object-contain bg-black" 
-                  controls 
-                  preload="metadata"
-                />
-              ) : (
-                <img 
-                  onClick={() => setPreviewImage(getImageUrl(activeImage))}
-                  src={getImageUrl(activeImage)} 
-                  alt="Active Media" 
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer" 
-                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/600x800/EEE/31343C?text=Image+Error'; }}
-                />
-              )
-            ) : (
-              <div className="text-gray-400 text-sm">ไม่มีรูปภาพปก</div>
-            )}
-          </div>
-
-          {/* Thumbnails */}
-          <div className="grid grid-cols-4 gap-2">
-            {allMedia.slice(0, 4).map((media: any, idx: number) => {
-              const isSelected = activeImage === media.filePath;
-              return (
-                <div 
-                  key={idx} 
-                  onClick={() => setActiveImage(media.filePath)}
-                  className={`relative aspect-[4/3] bg-black rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-[#712874] ring-2 ring-[#712874]/30' : 'border-gray-200 hover:opacity-80'}`}
-                >
-                   {isVideoFile(media.filePath) ? (
-                     <>
-                        <video 
-                          src={getImageUrl(media.filePath)} 
-                          className="w-full h-full object-cover opacity-70" 
-                          preload="metadata"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                           <svg className="w-6 h-6 text-white/90 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg>
-                        </div>
-                     </>
-                   ) : (
-                     <img 
-                        src={getImageUrl(media.filePath)} 
-                        alt={`Thumbnail ${idx}`} 
-                        className="w-full h-full object-cover" 
-                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/EEE/31343C?text=Error'; }}
-                      />
-                   )}
-                </div>
-              );
-            })}
-            {Array.from({ length: Math.max(0, 4 - allMedia.length) }).map((_, idx) => (
-              <div key={`empty-${idx}`} className="aspect-[4/3] bg-[#F5F5F5] rounded-lg border border-gray-200"></div>
-            ))}
-          </div>
+        {/* รูปซ้ายมือ */}
+        <div className="md:col-span-5 lg:col-span-4">
+          <ActivityMediaViewer 
+            mediaFiles={allMedia} 
+            getImageUrl={getImageUrl} 
+            isVideoFile={isVideoFile} 
+          />
         </div>
 
         {/* Info Right */}
-        <div className="md:col-span-7 lg:col-span-8 flex flex-col">
-          <div className="flex justify-between items-start mb-3">
-            <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
-          </div>
-          
-          <p className="text-[#712874] font-semibold text-[15px] border-l-4 border-[#712874] pl-3 mb-6 whitespace-pre-line leading-relaxed">
-            {activity.tagline}
-          </p>
+        <div className="md:col-span-7 lg:col-span-8 flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-3">
+              <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
+            </div>
+            
+            <p className="text-[#712874] font-semibold text-[15px] border-l-4 border-[#712874] pl-3 mb-6 whitespace-pre-line leading-relaxed">
+              {activity.tagline}
+            </p>
 
-          {/* INFO BOX */}
-          <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
-              <div className="grid grid-cols-[120px_1fr] gap-y-3.5 text-[14px] text-gray-800 items-center">
-                <span className="font-semibold text-gray-600">วันที่</span>
-                <span>{formatThaiDateOnly(activity.startDate)}</span>
-                
-                <span className="font-semibold text-gray-600">สถานที่จัดงาน</span>
-                <span>{activity.location?.name || '-'}</span>
-                
-                <span className="font-semibold text-gray-600">ละติจูด ลองจิจูด</span>
-                <span>{activity.location?.latitude ? `${activity.location.latitude} , ${activity.location.longitude}` : '-'}</span>
-                
-                <span className="font-semibold text-gray-600">แผนที่</span>
-                {activity.location?.latitude && activity.location?.longitude ? (
-                    <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${activity.location.latitude},${activity.location.longitude}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-gray-500 hover:text-blue-600 hover:underline break-all"
-                    >
-                        {`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`}
-                    </a>
-                ) : (
-                    <span>-</span>
-                )}
-                
-                <span className="font-semibold text-gray-600">ติดต่อ</span>
-                <span>{activity.phone || '-'}</span>
+            {/* INFO BOX */}
+            <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
+                <div className="grid grid-cols-[120px_1fr] gap-y-3.5 text-[14px] text-gray-800 items-center">
+                  <span className="font-semibold text-gray-600">วันที่</span>
+                  <span>{formatThaiDateOnly(activity.startDate)}</span>
+                  
+                  <span className="font-semibold text-gray-600">สถานที่จัดงาน</span>
+                  <span>{activity.location?.name || '-'}</span>
+                  
+                  <span className="font-semibold text-gray-600">ละติจูด ลองจิจูด</span>
+                  <span>{activity.location?.latitude ? `${activity.location.latitude} , ${activity.location.longitude}` : '-'}</span>
+                  
+                  <span className="font-semibold text-gray-600">แผนที่</span>
+                  {activity.location?.latitude && activity.location?.longitude ? (
+                      <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${activity.location.latitude},${activity.location.longitude}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-gray-500 hover:text-blue-600 hover:underline break-all"
+                      >
+                          {`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`}
+                      </a>
+                  ) : (
+                      <span>-</span>
+                  )}
+                  
+                  <span className="font-semibold text-gray-600">ติดต่อ</span>
+                  <span>{activity.phone || '-'}</span>
 
-                {/* ⭐ เพิ่มส่วนแสดง Social Media แบบไอคอนสัญลักษณ์ */}
-                {(activity.facebookUrl || activity.lineUrl) && (
-                  <>
-                    <span className="font-semibold text-gray-600">โซเชียลมีเดีย</span>
-                    <div className="flex items-center gap-3">
-                      {activity.facebookUrl && (
-                        <a href={activity.facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="Facebook">
-                          <img src={facebookIcon} alt="Facebook" className="w-8 h-8 object-contain" />
-                        </a>
-                      )}
-                      {activity.lineUrl && (
-                        <a href={activity.lineUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="LINE">
-                          <img src={lineIcon} alt="LINE" className="w-8 h-8 object-contain" />
-                        </a>
-                      )}
-                    </div>
-                  </>
-                )}
-                
-                <span className="font-semibold text-gray-600">ค่าเข้าชม</span>
-                <span className="text-green-600 font-bold">{Number(activity.price) === 0 ? 'ฟรี' : `${activity.price} บาท`}</span>
-              </div>
+                  {/* Social Media */}
+                  {(activity.facebookUrl || activity.lineUrl) && (
+                    <>
+                      <span className="font-semibold text-gray-600">โซเชียลมีเดีย</span>
+                      <div className="flex items-center gap-3">
+                        {activity.facebookUrl && (
+                          <a href={activity.facebookUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="Facebook">
+                            <img src={facebookIcon} alt="Facebook" className="w-8 h-8 object-contain" />
+                          </a>
+                        )}
+                        {activity.lineUrl && (
+                          <a href={activity.lineUrl} target="_blank" rel="noopener noreferrer" className="hover:scale-110 transition-transform" title="LINE">
+                            <img src={lineIcon} alt="LINE" className="w-8 h-8 object-contain" />
+                          </a>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  
+                  <span className="font-semibold text-gray-600">ค่าเข้าชม</span>
+                  <span className="text-green-600 font-bold">{Number(activity.price) === 0 ? 'ฟรี' : `${activity.price} บาท`}</span>
+                </div>
+            </div>
           </div>
 
           {/* OpenStreetMap Iframe */}
           {activity.location?.latitude && activity.location?.longitude && (
-              <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200">
+              <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200 mt-auto">
                    <iframe 
-                      title="OpenStreetMap"
-                      width="100%" 
-                      height="100%" 
-                      frameBorder="0" 
-                      scrolling="no" 
-                      marginHeight={0} 
-                      marginWidth={0} 
-                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${activity.location.longitude - 0.01}%2C${activity.location.latitude - 0.01}%2C${activity.location.longitude + 0.01}%2C${activity.location.latitude + 0.01}&layer=mapnik&marker=${activity.location.latitude}%2C${activity.location.longitude}`}
-                  ></iframe>
+                    title="OpenStreetMap"
+                    width="100%" 
+                    height="100%" 
+                    frameBorder="0" 
+                    scrolling="no" 
+                    marginHeight={0} 
+                    marginWidth={0} 
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${activity.location.longitude - 0.01}%2C${activity.location.latitude - 0.01}%2C${activity.location.longitude + 0.01}%2C${activity.location.latitude + 0.01}&layer=mapnik&marker=${activity.location.latitude}%2C${activity.location.longitude}`}
+                   ></iframe>
               </div>
           )}
         </div>
       </div>
 
-      {/* 2. Description Section */}
+      {/* Description Section */}
       <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="text-[18px] font-bold text-[#712874] mb-5 pb-3 border-b border-dashed border-gray-200">
             รายละเอียดกิจกรรม
@@ -294,7 +279,7 @@ export default function HistoryDetailActivityPage() {
         </p>
       </div>
 
-      {/* 3. Schedule Section */}
+      {/* Schedule Section */}
       <div className="bg-white p-8 lg:p-10 rounded-2xl shadow-sm border border-gray-100">
         <h3 className="text-[18px] font-bold text-[#712874] mb-6 pb-3 border-b border-dashed border-gray-200">
             กำหนดการกิจกรรม
@@ -323,7 +308,7 @@ export default function HistoryDetailActivityPage() {
                       {schedule.files.map((file: any, fileIdx: number) => (
                         <div 
                           key={fileIdx} 
-                          onClick={() => setPreviewImage(getImageUrl(file.filePath))}
+                          onClick={() => setPreviewScheduleImage(getImageUrl(file.filePath))}
                           className="relative w-[120px] h-[80px] bg-black rounded-lg overflow-hidden border border-gray-200 shadow-sm cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-center"
                         >
                            {isVideoFile(file.filePath) ? (
@@ -342,7 +327,7 @@ export default function HistoryDetailActivityPage() {
                                 alt={`Schedule file`} 
                                 className="w-full h-full object-cover bg-gray-100" 
                                 onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/EEE/31343C?text=Error'; }}
-                              />
+                             />
                            )}
                         </div>
                       ))}
@@ -357,7 +342,7 @@ export default function HistoryDetailActivityPage() {
         </div>
       </div>
 
-      {/* 4. Footer Meta */}
+      {/* Footer Meta */}
       <div className="bg-white p-6 lg:p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between text-[13px] text-gray-500 font-medium mt-6">
         <div className="flex items-center space-x-6 mb-2 md:mb-0">
           <span className="font-bold text-[#712874]">สร้างโดย</span>
@@ -371,26 +356,26 @@ export default function HistoryDetailActivityPage() {
         </div>
       </div>
 
-      {/* ================== Modal สำหรับดูรูปขนาดใหญ่ / วิดีโอ ================== */}
-      {previewImage && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+      {/* Modal */}
+      {previewScheduleImage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPreviewScheduleImage(null)}>
           <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-black flex items-center justify-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <button 
-              onClick={() => setPreviewImage(null)}
+              onClick={() => setPreviewScheduleImage(null)}
               className="absolute top-4 right-4 z-10 bg-white/20 hover:bg-white/40 text-white rounded-full w-10 h-10 flex items-center justify-center text-lg font-bold transition-colors cursor-pointer"
             >
               ✕
             </button>
-            {isVideoFile(previewImage) ? (
+            {isVideoFile(previewScheduleImage) ? (
                <video 
-                  src={previewImage} 
+                  src={previewScheduleImage} 
                   className="max-w-full max-h-[85vh] object-contain rounded-lg" 
                   controls 
-                  autoPlay
+                  autoPlay 
                />
             ) : (
                <img 
-                  src={previewImage} 
+                  src={previewScheduleImage} 
                   alt="Preview Large" 
                   className="max-w-full max-h-[85vh] object-contain rounded-lg" 
                />

@@ -1,7 +1,8 @@
 /**
- * คำอธิบาย : Component สำหรับหน้าจอ "แก้ไขกิจกรรม" (Edit Activity Page)
- * ทำหน้าที่ดึงข้อมูลเดิมของกิจกรรมมาแสดงในฟอร์ม, จัดการการแก้ไขข้อมูลทั่วไป, ตำแหน่งแผนที่, กำหนดการ, 
- * การจัดการไฟล์รูปภาพ/วิดีโอเก่าและใหม่ รวมถึงการส่งข้อมูลอัปเดตกลับไปยัง Backend
+ * คำอธิบาย : Component สำหรับหน้าจอ "แก้ไขกิจกรรมสำหรับ Admin" (Admin Edit Activity Page)
+ * ทำหน้าที่ดึงข้อมูลกิจกรรมเดิมของ Admin มาแสดงในฟอร์ม, จัดการการแก้ไขข้อมูลทั่วไป, 
+ * พิกัดแผนที่ (Leaflet Map), กำหนดการย่อย, การจัดการไฟล์รูปภาพ/วิดีโอ (รองรับทั้งไฟล์เก่าและไฟล์อัปโหลดใหม่) 
+ * พร้อมทั้งส่งคำขออัปเดตผ่าน activityService ของแอดมิน
  */
 
 import React, { useState, useEffect } from 'react';
@@ -14,9 +15,10 @@ import L from 'leaflet';
 import { activityService } from '../../Services/activity.service';
 import { locationService } from '../../Services/location.service';
 
-// Import Modal Component
+// Import Shared Modal Component
 import ActivityModals, { type ModalStateType } from '../../Components/Modal';
 
+// แก้ไขปัญหาไอคอน Marker ของ Leaflet หายใน React
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -38,7 +40,7 @@ const isNewFile = (file: any) => file && typeof file === 'object' && 'name' in f
 
 /**
  * คำอธิบาย : Component ย่อยสำหรับจัดการการคลิกปักหมุดบนแผนที่ (Leaflet)
- * Input: position (พิกัด), setPosition, setFormData, setErrors
+ * Input: position, setPosition, setFormData, setErrors
  * Output: หมุดแสดงตำแหน่งบนแผนที่
  */
 function LocationSelector({ position, setPosition, setFormData, setErrors }: any) {
@@ -53,11 +55,11 @@ function LocationSelector({ position, setPosition, setFormData, setErrors }: any
 }
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอแก้ไขกิจกรรม
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอแก้ไขกิจกรรมของ Admin
  * Input: -
- * Output: UI ฟอร์มแก้ไขข้อมูลกิจกรรมพร้อมแผนที่และรายการไฟล์สื่อ
+ * Output: UI ฟอร์มแก้ไขกิจกรรมพร้อมแผนที่และการจัดการไฟล์สื่อสำหรับ Admin
  */
-export default function EditActivityPage() {
+export default function AdminEditActivityPage() {
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -92,7 +94,7 @@ export default function EditActivityPage() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่อยู่ประเทศไทย (จังหวัด อำเภอ ตำบล)
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) จาก locationService
    * Input: -
    * Output: -
    */
@@ -111,12 +113,12 @@ export default function EditActivityPage() {
     fetchThaiData();
   }, []);
 
-  // ดึงข้อมูลกิจกรรมผ่าน Service 
+  // ดึงข้อมูลกิจกรรมผ่าน Service
   useEffect(() => {
     const fetchActivityDetail = async () => {
       if (!id) return;
       try {
-        const responseData = await activityService.getActivityById(id);
+        const responseData = await activityService.getAdminActivityById(id);
         const act = responseData.data || responseData; 
         
         const splitDateTime = (isoString: string) => {
@@ -304,7 +306,7 @@ export default function EditActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันดึง URL ตัวอย่างของไฟล์ภาพหรือวิดีโอ (รองรับทั้งไฟล์ใหม่และไฟล์เก่าจากระบบ)
+   * คำอธิบาย : ฟังก์ชันดึง URL ตัวอย่างของไฟล์ภาพหรือวิดีโอ
    * Input: file (File | ExistingFile)
    * Output: string (URL สำหรับแสดงผล)
    */
@@ -395,7 +397,7 @@ export default function EditActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและส่งคำขออัปเดตข้อมูลกิจกรรมไปยัง Backend ผ่าน activityService
+   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและส่งคำขออัปเดตกิจกรรมสำหรับ Admin ไปยัง Backend ผ่าน activityService
    * Input: -
    * Output: -
    */
@@ -487,7 +489,7 @@ export default function EditActivityPage() {
       });
 
       if (id) {
-        await activityService.updateActivity(id, formDataToSend);
+        await activityService.updateAdminActivity(id, formDataToSend);
       }
 
       setModalState('successEdit');
@@ -501,13 +503,13 @@ export default function EditActivityPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันจัดการหลังบันทึกสำเร็จ นำผู้ใช้งานกลับสู่หน้าหลักของกิจกรรม
+   * คำอธิบาย : ฟังก์ชันจัดการหลังบันทึกสำเร็จ นำผู้ใช้งานกลับสู่หน้าหลักของ Admin
    * Input: -
    * Output: -
    */
   const handleSuccessClose = () => {
     setModalState('none');
-    navigate('/superadmin/activity');
+    navigate('/admin/activity');
   };
 
   const Label = ({ title, required = false }: { title: string, required?: boolean }) => (
@@ -852,7 +854,7 @@ export default function EditActivityPage() {
           </section>
 
           <div className="flex justify-end items-center space-x-4 pt-8 border-t border-gray-200">
-            <button type="button" onClick={() => navigate('/superadmin/activity')} className="px-6 py-2.5 rounded-xl text-sm font-medium border text-gray-700 hover:bg-gray-50 bg-white">
+            <button type="button" onClick={() => navigate('/admin/activity')} className="px-6 py-2.5 rounded-xl text-sm font-medium border text-gray-700 hover:bg-gray-50 bg-white">
               ยกเลิก
             </button>
             <button type="submit" className="bg-[#712874] text-white font-medium px-8 py-2.5 rounded-xl text-sm shadow-sm hover:bg-purple-900 transition-colors">
@@ -868,8 +870,8 @@ export default function EditActivityPage() {
         modalState={modalState} 
         setModalState={setModalState} 
         isProcessing={isProcessing}
-        handleApprove={confirmSubmit} // ส่งฟังก์ชันไปให้ปุ่มยืนยัน
-        handleSuccessClose={handleSuccessClose} // ส่งฟังก์ชันไปให้ปุ่มปิด (เพื่อนากลับหน้าหลัก)
+        handleApprove={confirmSubmit}
+        handleSuccessClose={handleSuccessClose} 
       />
 
     </div>

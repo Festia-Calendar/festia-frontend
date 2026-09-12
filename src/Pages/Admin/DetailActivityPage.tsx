@@ -1,6 +1,6 @@
 /**
- * คำอธิบาย : Component สำหรับแสดงหน้ารายละเอียดของกิจกรรม (Activity Detail)
- * แสดงข้อมูลต่างๆ ของกิจกรรม เช่น แบนเนอร์ โปสเตอร์ ข้อมูลทั่วไป วันที่ สถานที่จัดงาน พร้อมทั้งเปิด/ปิดรูปภาพ-วิดีโอ (Modal Preview)
+ * คำอธิบาย : Component สำหรับหน้าจอแสดงรายละเอียดกิจกรรมสำหรับสิทธิ์ Admin (Admin Detail Activity Page)
+ * ทำหน้าที่แสดงข้อมูลทั้งหมดของกิจกรรมที่ Admin รับผิดชอบ เช่น โปสเตอร์, สถานที่, ข้อมูลการติดต่อ, และกำหนดการย่อย พร้อมกับปุ่มเชื่อมโยงไปยังหน้าแก้ไข
  */
 
 import React, { useEffect, useState } from 'react';
@@ -12,16 +12,16 @@ import { activityService } from '../../Services/activity.service';
 // Import Components
 import ActivityMediaViewer from '../../Components/ActivityMediaViewer';
 
-// ⭐ Import รูปภาพ Facebook และ Line จาก assets
+// Import รูปภาพ Facebook และ Line จาก assets
 import facebookIcon from '../../assets/facebook.png'; 
 import lineIcon from '../../assets/line.png'; 
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้ารายละเอียดกิจกรรม
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้ารายละเอียดกิจกรรมของ Admin
  * Input: -
- * Output: UI หน้ารายละเอียดกิจกรรม รวมถึงส่วนจัดแสดงสื่อ ข้อมูลการติดต่อ โซเชียลมีเดีย และกำหนดการต่างๆ
+ * Output: UI รายละเอียดกิจกรรมสำหรับ Admin พร้อมส่วนแสดงสื่อ, ข้อมูลรายละเอียด, กำหนดการ และลิงก์หน้าแก้ไข
  */
-export default function DetailActivityPage() {
+export default function AdminDetailActivityPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
@@ -34,9 +34,9 @@ export default function DetailActivityPage() {
   const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'; 
   
   /**
-   * คำอธิบาย : แปลงและจัดการ URL ของรูปภาพเพื่อให้สามารถแสดงผลได้ ไม่ว่าจะมาจาก URL ภายนอก หรือ Server ของระบบ
+   * คำอธิบาย : แปลงและจัดการ URL ของรูปภาพเพื่อให้สามารถแสดงผลได้ถูกต้อง
    * Input: path (string) - เส้นทางของไฟล์รูปภาพ
-   * Output: string (URL ที่สามารถนำไปใช้กับแท็ก img หรือ video ได้)
+   * Output: string (URL ที่สมบูรณ์สำหรับนำไปใช้งาน)
    */
   const getImageUrl = (path: string) => {
     if (!path) return '';
@@ -58,7 +58,7 @@ export default function DetailActivityPage() {
   };
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลรายละเอียดกิจกรรมจาก Backend (API)
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลรายละเอียดกิจกรรมของ Admin จาก Backend ผ่าน activityService
    * Input: -
    * Output: -
    */
@@ -66,7 +66,7 @@ export default function DetailActivityPage() {
     const fetchDetail = async () => {
       try {
         if (!id) return;
-        const responseData = await activityService.getActivityById(id);
+        const responseData = await activityService.getAdminActivityById(id);
         setData(responseData.data || responseData);
       } catch (error) {
         console.error("Fetch detail error:", error);
@@ -82,7 +82,7 @@ export default function DetailActivityPage() {
   /**
    * คำอธิบาย : จัดรูปแบบช่วงวันที่ (Start Date - End Date) ให้แสดงเป็นภาษาไทย
    * Input: startStr (string), endStr (string)
-   * Output: string (ตัวอย่าง: "1 ม.ค. 2026 - 5 ม.ค. 2026")
+   * Output: string
    */
   const formatDateRange = (startStr: string, endStr: string) => {
     if (!startStr) return '-';
@@ -94,7 +94,7 @@ export default function DetailActivityPage() {
   };
 
   /**
-   * คำอธิบาย : จัดรูปแบบวันที่และเวลา (Timestamp) ให้เป็นภาษาไทย (ตัวอย่าง: 1 ม.ค. 2026 12:30 น.)
+   * คำอธิบาย : จัดรูปแบบวันที่และเวลาเต็มรูปแบบในภาษาไทย
    * Input: dateString (string)
    * Output: string
    */
@@ -107,9 +107,9 @@ export default function DetailActivityPage() {
   };
 
   /**
-   * คำอธิบาย : จัดรูปแบบวันที่และเวลาสำหรับกำหนดการย่อยของกิจกรรม
+   * คำอธิบาย : จัดรูปแบบช่วงเวลาของกำหนดการย่อย
    * Input: start (string), end (string)
-   * Output: string (ตัวอย่าง: 1 ม.ค. 12:30 - 14:00 น.)
+   * Output: string
    */
   const formatScheduleDateTime = (start: string, end: string) => {
     if (!start || !end) return '-';
@@ -132,7 +132,7 @@ export default function DetailActivityPage() {
       {/* Header & Back Button */}
       <div className="flex items-center space-x-2">
         <button 
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/admin/activity')}
           className="text-[#712874] hover:opacity-70 transition-opacity p-1 -ml-1 cursor-pointer flex items-center justify-center"
           title="ย้อนกลับ"
         >
@@ -164,7 +164,7 @@ export default function DetailActivityPage() {
       {/* Header Section */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         
-        {/* รูปซ้ายมือ (ส่งฟังก์ชัน getImageUrl และ isVideoFile เข้าไป) */}
+        {/* รูปซ้ายมือ */}
         <div className="md:col-span-5 lg:col-span-4">
           <ActivityMediaViewer 
             mediaFiles={allMedia} 
@@ -180,7 +180,7 @@ export default function DetailActivityPage() {
               <h2 className="text-[32px] font-bold text-[#712874] leading-tight pr-4">{activity.name}</h2>
               
               <Link 
-                to={`/superadmin/activity/${activity.id}/edit`}
+                to={`/admin/activity/${activity.id}/edit`}
                 className="flex items-center space-x-1.5 bg-[#712874] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm shrink-0 mt-1"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -262,7 +262,7 @@ export default function DetailActivityPage() {
                   {schedule.title && <p className="text-gray-800 text-[14px] font-semibold mb-1.5">{schedule.title}</p>}
                   {schedule.description && <p className="text-gray-600 text-[14px] mb-4">{schedule.description}</p>}
                   
-                  {/* Schedule Media (เพิ่ม onClick ให้กดขยายรูปกำหนดการได้) */}
+                  {/* Schedule Media */}
                   {schedule.files && schedule.files.length > 0 && (
                     <div className="flex flex-wrap gap-3 mt-3">
                       {schedule.files.map((file: any, fileIdx: number) => (

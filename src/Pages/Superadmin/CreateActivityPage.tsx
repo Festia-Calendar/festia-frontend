@@ -1,9 +1,20 @@
+/**
+ * คำอธิบาย : Component สำหรับหน้า "สร้างกิจกรรมใหม่" ของระบบ (Create Activity Page)
+ * ให้ผู้ใช้งานกรอกข้อมูลต่างๆ ได้แก่ ข้อมูลทั่วไป, สถานที่จัดงาน, แผนที่ (Leaflet Map), กำหนดการย่อย, และการอัปโหลดไฟล์สื่อ
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import axios from 'axios';
+
+// Import Services
+import { activityService } from '../../Services/activity.service';
+import { locationService } from '../../Services/location.service';
+
+// Import Modal Component
+import Modal, { type ModalStateType } from '../../Components/Modal';
 
 // แก้ไขปัญหาไอคอน Marker ของ Leaflet หายใน React
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -22,7 +33,11 @@ const REGION_MAP: Record<number, string> = {
   4: "ภาคตะวันตก", 5: "ภาคตะวันออก", 6: "ภาคใต้"
 };
 
-// Component สำหรับคลิกเลือกพิกัดบนแผนที่
+/**
+ * คำอธิบาย : Component ย่อยสำหรับจัดการการคลิกบนแผนที่เพื่อระบุพิกัด (Latitude/Longitude)
+ * Input: position (พิกัดปัจจุบัน), setPosition, setFormData, setErrors (ฟังก์ชันสำหรับอัปเดต State หลัก)
+ * Output: หมุด (Marker) บนแผนที่
+ */
 function LocationSelector({ position, setPosition, setFormData, setErrors }: any) {
   useMapEvents({
     click(e) {
@@ -39,9 +54,15 @@ function LocationSelector({ position, setPosition, setFormData, setErrors }: any
   return position === null ? null : <Marker position={position}></Marker>;
 }
 
+/**
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอสร้างกิจกรรม
+ * Input: -
+ * Output: UI ฟอร์มกรอกข้อมูลกิจกรรม
+ */
 export default function CreateActivityPage() {
   const navigate = useNavigate();
 
+  // State สำหรับเก็บข้อมูลที่ผู้ใช้กรอกในฟอร์ม
   const [formData, setFormData] = useState({
     name: '', activityType: '', price: '', statusActivity: 'PUBLISH',
     tagline: '', description: '', phone: '', facebook: '', line: '',
@@ -57,22 +78,22 @@ export default function CreateActivityPage() {
   // ⭐ State สำหรับเก็บ Error ของแต่ละช่อง
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ================= Modal States =================
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState<boolean>(false);
+  // ================= Shared Modal State =================
+  const [modalState, setModalState] = useState<ModalStateType>('none');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
+  /**
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลจังหวัด อำเภอ ตำบล จาก API ของ locationService
+   * Input: -
+   * Output: -
+   */
   useEffect(() => {
     const fetchThaiData = async () => {
       setIsLoadingLocation(true);
       try {
-        const response = await fetch('https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json');
-        
-        if (!response.ok) throw new Error("Network response was not ok");
-        const data = await response.json();
+        const data = await locationService.getThaiData();
         setThaiData(data);
       } catch (error) {
-        console.error("Error fetching Thai data:", error);
         alert("ไม่สามารถดึงข้อมูลที่อยู่ได้ กรุณาตรวจสอบลิงก์ API หรืออินเทอร์เน็ต");
       } finally {
         setIsLoadingLocation(false);
@@ -81,6 +102,7 @@ export default function CreateActivityPage() {
     fetchThaiData();
   }, []);
 
+  // คำนวณข้อมูลจังหวัด อำเภอ ตำบล ที่เกี่ยวข้องเมื่อมีการเลือกข้อมูล
   const regionOptions = Array.from(new Set(thaiData.map(p => REGION_MAP[p.geography_id]))).filter(Boolean);
   const availableProvinces = thaiData.filter(p => REGION_MAP[p.geography_id] === formData.region);
   const selectedProvinceObj = availableProvinces.find(p => p.name_th === formData.province);
@@ -102,6 +124,11 @@ export default function CreateActivityPage() {
     if (errors.district) setErrors(prev => ({ ...prev, district: '' }));
   };
 
+  /**
+   * คำอธิบาย : ฟังก์ชันจัดการเมื่อมีการพิมพ์ในช่อง Input ต่างๆ และลบ Error ของช่องนั้นออก
+   * Input: e (Event)
+   * Output: -
+   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
@@ -119,15 +146,18 @@ export default function CreateActivityPage() {
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
+  // State สำหรับจัดการไฟล์รูปภาพปกและรูปภาพ/วิดีโอเพิ่มเติม
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
 
+  // State สำหรับจัดการกำหนดการย่อย (Schedules)
   type Timeslot = { startTime: string, endTime: string, description: string, files: File[] };
   type ScheduleDay = { date: string, timeslots: Timeslot[] };
   const [schedules, setSchedules] = useState<ScheduleDay[]>([
     { date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [] }] }
   ]);
 
+  // ฟังก์ชันเพิ่ม/ลบ วันและช่วงเวลาในกำหนดการ
   const addDay = () => setSchedules([...schedules, { date: '', timeslots: [{ startTime: '', endTime: '', description: '', files: [] }] }]);
   const removeDay = (dayIndex: number) => setSchedules(schedules.filter((_, i) => i !== dayIndex));
   const addTimeSlot = (dayIndex: number) => {
@@ -169,7 +199,11 @@ export default function CreateActivityPage() {
     setSchedules(newSchedules);
   };
 
-  // ⭐ ฟังก์ชันตรวจสอบฟอร์มก่อนกด Submit
+  /**
+   * คำอธิบาย : ฟังก์ชันตรวจสอบข้อมูลฟอร์มก่อนกด Submit (Validation)
+   * Input: -
+   * Output: boolean (True หากผ่านทุกเงื่อนไข)
+   */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -207,18 +241,29 @@ export default function CreateActivityPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  /**
+   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่ม "สร้างกิจกรรม" จะทำการ Validate Form ก่อนเปิด Modal ยืนยัน
+   * Input: e (Event)
+   * Output: -
+   */
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      setIsConfirmModalOpen(true);
+      setModalState('confirmCreate'); // เปิด Modal ยืนยันจากส่วนกลาง
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  // ⭐ เปลี่ยนฟังก์ชันกลับมาเป็น async เพื่อให้มี await
+  /**
+   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและบันทึกข้อมูลหลัก (สร้างกิจกรรม) ไปยัง Backend
+   * Input: -
+   * Output: -
+   */
   const confirmSubmit = async () => {
+    setModalState('processing'); // เปลี่ยนหน้าจอเป็นกำลังโหลด
     setIsProcessing(true);
+
     try {
       const formDataToSend = new FormData();
       const flatScheduleFiles: File[] = [];
@@ -231,29 +276,55 @@ export default function CreateActivityPage() {
             flatScheduleFiles.push(file);
             fileIndexes.push(flatScheduleFiles.length - 1);
           });
+          
+          // แปลงวันที่และเวลาของ Schedule ให้เป็นแบบ ISO String 
+          const startDateTime = day.date && slot.startTime 
+            ? new Date(`${day.date}T${slot.startTime}:00`).toISOString()
+            : "";
+          const endDateTime = day.date && slot.endTime 
+            ? new Date(`${day.date}T${slot.endTime}:00`).toISOString()
+            : "";
+
           formattedSchedules.push({
             title: slot.description || "กิจกรรมย่อย",
             description: slot.description,
-            startDateTime: day.date && slot.startTime ? `${day.date}T${slot.startTime}:00+07:00` : null,
-            endDateTime: day.date && slot.endTime ? `${day.date}T${slot.endTime}:00+07:00` : null,
-            fileIndexes: fileIndexes
+            startDateTime: startDateTime,
+            endDateTime: endDateTime,
+            fileIndexes: fileIndexes.length > 0 ? fileIndexes : undefined
           });
         });
       });
 
+      // ดึงแค่วันที่ (YYYY-MM-DD) สำหรับ startDate และ dueDate ของกิจกรรมหลัก
+      const activityStartDate = formData.startDate 
+        ? new Date(`${formData.startDate}`).toISOString().split('T')[0] 
+        : "";
+      const activityDueDate = formData.endDate 
+        ? new Date(`${formData.endDate}`).toISOString().split('T')[0]
+        : "";
+
       const activityJson = {
-        locationId: null,
         location: {
-          name: formData.locationName, zone: formData.region, province: formData.province,
-          district: formData.district, subDistrict: formData.subDistrict, detail: formData.addressDetail,
-          latitude: Number(formData.latitude), longitude: Number(formData.longitude)
+          name: formData.locationName, 
+          zone: formData.region, 
+          province: formData.province,
+          district: formData.district, 
+          subDistrict: formData.subDistrict, 
+          detail: formData.addressDetail,
+          latitude: Number(formData.latitude),
+          longitude: Number(formData.longitude)
         },
-        name: formData.name, tagline: formData.tagline, description: formData.description,
-        activityType: formData.activityType, phone: formData.phone,
-        lineUrl: formData.line, facebookUrl: formData.facebook, price: formData.price ? Number(formData.price) : null,
-        statusActivity: formData.statusActivity, statusApprove: "PENDING",
-        startDate: formData.startDate && formData.startTime ? `${formData.startDate}T${formData.startTime}:00+07:00` : null,
-        dueDate: formData.endDate && formData.endTime ? `${formData.endDate}T${formData.endTime}:00+07:00` : null,
+        name: formData.name, 
+        tagline: formData.tagline, 
+        description: formData.description,
+        activityType: formData.activityType, 
+        phone: formData.phone,
+        lineUrl: formData.line || undefined, 
+        facebookUrl: formData.facebook || undefined, 
+        price: formData.price ? Number(formData.price) : 0, 
+        statusActivity: formData.statusActivity, 
+        startDate: activityStartDate,
+        dueDate: activityDueDate,
         schedules: formattedSchedules
       };
 
@@ -262,36 +333,45 @@ export default function CreateActivityPage() {
       mediaFiles.forEach(file => formDataToSend.append("media", file));
       flatScheduleFiles.forEach(file => formDataToSend.append("scheduleFiles", file));
 
-      const token = localStorage.getItem('token') || ''; 
+      // ยิง API ผ่าน Service
+      await activityService.createActivity(formDataToSend);
 
-      // ⭐ ใส่ await กลับมา เพื่อรอจนกว่าจะสำเร็จแล้วค่อยเปิด Modal Success
-      await axios.post('http://localhost:3000/api/superadmin/activity', formDataToSend, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      setIsConfirmModalOpen(false);
-      setIsSuccessModalOpen(true); // เปิดหน้าต่าง Success เมื่อบันทึกเสร็จ
+      setModalState('successCreate'); // เปิดหน้าต่าง Success เมื่อบันทึกเสร็จ
 
     } catch (error: any) {
       alert(`เกิดข้อผิดพลาดในการสร้างกิจกรรม: ${error.response?.data?.message || error.message}`);
-      setIsConfirmModalOpen(false);
+      setModalState('none');
     } finally {
-      setIsProcessing(false); // เลิกหมุนเมื่อทำงานเสร็จ
+      setIsProcessing(false);
     }
   };
 
-  const closeSuccessModal = () => {
-    setIsSuccessModalOpen(false);
+  /**
+   * คำอธิบาย : ฟังก์ชันจัดการหลังจากบันทึกข้อมูลสำเร็จ และกลับไปที่หน้าแสดงกิจกรรมหลัก
+   * Input: -
+   * Output: -
+   */
+  const handleSuccessClose = () => {
+    setModalState('none');
     navigate('/superadmin/activity');
   };
 
+  /**
+   * คำอธิบาย : Component สำหรับแสดงป้ายกำกับ (Label) ของฟิลด์ต่างๆ รองรับเครื่องหมาย * สำหรับฟิลด์บังคับ
+   * Input: title (ชื่อฟิลด์), required (boolean)
+   * Output: JSX Element
+   */
   const Label = ({ title, required = false }: { title: string, required?: boolean }) => (
     <label className="block text-[14px] font-bold text-gray-800 mb-2">
       {title} {required && <span className="text-red-500">*</span>}
     </label>
   );
 
-  // ฟังก์ชันช่วยกำหนดสี Class Name ของ Input อัตโนมัติ (เปลี่ยนเป็นสีแดงถ้าติด Error)
+  /**
+   * คำอธิบาย : ฟังก์ชันช่วยกำหนดสี (Class Name) ของ Input อัตโนมัติ โดยอ้างอิงตาม Error State
+   * Input: fieldName (string)
+   * Output: string (CSS class)
+   */
   const getInputClass = (fieldName: string) => {
     const baseClass = "w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none transition-colors";
     return errors[fieldName] 
@@ -307,7 +387,7 @@ export default function CreateActivityPage() {
         
         <form onSubmit={handlePreSubmit} className="space-y-12" noValidate>
           
-          {/* ================= 1. ข้อมูลทั่วไปของกิจกรรม ================= */}
+          {/* ================= ข้อมูลทั่วไปของกิจกรรม ================= */}
           <section className="space-y-5">
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">ข้อมูลทั่วไปของกิจกรรม</h2>
             
@@ -373,7 +453,7 @@ export default function CreateActivityPage() {
             </div>
           </section>
 
-          {/* ================= 2. วันเวลา และสถานที่ตั้ง ================= */}
+          {/* ================= วันเวลา และสถานที่ตั้ง ================= */}
           <section className="space-y-5">
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">วันเวลา และสถานที่ตั้ง</h2>
             
@@ -473,7 +553,7 @@ export default function CreateActivityPage() {
             </div>
           </section>
 
-          {/* ================= 3. กำหนดการกิจกรรมย่อย ================= */}
+          {/* ================= กำหนดการกิจกรรมย่อย ================= */}
           <section className="space-y-4">
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">กำหนดการกิจกรรมย่อย</h2>
             {schedules.map((day, dayIndex) => (
@@ -538,7 +618,7 @@ export default function CreateActivityPage() {
             </div>
           </section>
 
-          {/* ================= 4. รูปภาพและวิดีโอของกิจกรรม ================= */}
+          {/* ================= รูปภาพและวิดีโอของกิจกรรม ================= */}
           <section className="space-y-6">
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">รูปภาพและวิดีโอของกิจกรรม</h2>
             <div className="relative pl-6 space-y-8 border-l-2 border-[#F59E0B] ml-2">
@@ -557,7 +637,7 @@ export default function CreateActivityPage() {
                         <svg className={`w-8 h-8 mb-1 ${errors.cover ? 'text-red-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                         <span className={`text-[11px] font-medium ${errors.cover ? 'text-red-500' : ''}`}>0 / 1</span>
                         <input type="file" accept="image/*" className="hidden" onChange={(e) => { 
-                          if (e.target.files) {
+                          if (e.target.files && e.target.files.length > 0) {
                             setCoverFile(e.target.files[0]);
                             if (errors.cover) setErrors(prev => ({ ...prev, cover: '' }));
                           }
@@ -609,12 +689,12 @@ export default function CreateActivityPage() {
             </div>
           </section>
 
-          {/* ================= 5. Footer Actions ================= */}
+          {/* ================= Footer Actions ================= */}
           <div className="flex justify-end items-center space-x-4 pt-8 border-t border-gray-200">
             <button type="button" onClick={() => navigate('/superadmin/activity')} className="px-6 py-2.5 rounded-xl text-sm font-medium border text-gray-700 hover:bg-gray-50 bg-white">
               ยกเลิก
             </button>
-            <button type="submit" className="bg-[#712874] text-white font-medium px-8 py-2.5 rounded-xl text-sm shadow-sm">
+            <button type="submit" className="bg-[#712874] text-white font-medium px-8 py-2.5 rounded-xl text-sm shadow-sm hover:bg-purple-900 transition-colors">
               สร้างกิจกรรม
             </button>
           </div>
@@ -622,55 +702,15 @@ export default function CreateActivityPage() {
         </form>
       </div>
 
-      {/* ================= Modal ยืนยันการสร้าง ================= */}
-      {isConfirmModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            <div className="w-[64px] h-[64px] rounded-full border-[3px] border-black flex items-center justify-center mb-6">
-              <span className="text-[36px] font-bold text-black leading-none">!</span>
-            </div>
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">ยืนยันการสร้างกิจกรรม</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">คุณต้องการยืนยันการสร้างกิจกรรมหรือไม่</p>
-            <div className="flex space-x-4 w-full justify-center">
-              <button
-                onClick={() => setIsConfirmModalOpen(false)}
-                disabled={isProcessing}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors w-[120px]"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={confirmSubmit}
-                disabled={isProcessing}
-                className="px-6 py-2.5 bg-[#5B1F54] text-white rounded-lg text-[14px] font-medium hover:bg-[#461740] transition-colors w-[120px] flex justify-center items-center"
-              >
-                {isProcessing ? 'กำลังสร้าง...' : 'ยืนยัน'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ================= Modal Component ================= */}
+      <Modal
+        modalState={modalState} 
+        setModalState={setModalState} 
+        isProcessing={isProcessing}
+        handleApprove={confirmSubmit} // ส่งฟังก์ชันสร้างกิจกรรมไปให้ปุ่มยืนยัน
+        handleSuccessClose={handleSuccessClose} // ส่งฟังก์ชันตอนกดปิด
+      />
 
-      {/* ================= Modal สร้างสำเร็จ ================= */}
-      {isSuccessModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-[420px] p-10 flex flex-col items-center shadow-xl animate-fade-in-up">
-            <div className="w-[76px] h-[76px] rounded-full bg-[#6B2A68] flex items-center justify-center mb-6 shadow-inner">
-              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-            <h3 className="text-[20px] font-bold text-gray-900 mb-3">สร้างกิจกรรมสำเร็จ</h3>
-            <p className="text-[14px] text-gray-500 mb-8 text-center">ข้อมูลกิจกรรมถูกบันทึก</p>
-            <button
-              onClick={closeSuccessModal}
-              className="px-8 py-2.5 bg-[#4A154B] text-white rounded-lg text-[14px] font-medium hover:bg-[#340f35] transition-colors w-[140px]"
-            >
-              ปิด
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,9 +1,23 @@
+/**
+ * คำอธิบาย : Component สำหรับหน้าหลัก (Home Page) ของเว็บไซต์ 
+ * ทำหน้าที่แสดงแบนเนอร์, ปฏิทินกิจกรรม, ตัวกรองค้นหา และแสดงรายการกิจกรรมทั้งหมดสำหรับผู้ใช้งานทั่วไป
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, ChevronDown, Phone, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Phone, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+// Import Services & Helpers
+import { homeService } from '../Services/home.service';
+import { locationService } from '../Services/location.service';
+
+// Import Components
+import HomeBanner from '../Components/HomeBanner';
 import logo from '../assets/logo.png'; 
 
+// ================= Constants =================
 const ACTIVITY_TYPE_MAP: Record<string, string> = {
+  ALL: 'ทั้งหมด',
   CULTURAL_FESTIVAL: 'เทศกาลประเพณีและวัฒนธรรม',
   EXHIBITION_ART: 'นิทรรศการและศิลปะ',
   PERFORMANCE_MUSIC: 'การแสดง ดนตรี และความบันเทิง',
@@ -14,156 +28,223 @@ const ACTIVITY_TYPE_MAP: Record<string, string> = {
   COMMUNITY_TOURISM: 'ท่องเที่ยวชุมชน'
 };
 
-const THAI_MONTHS = [
-  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-];
-const THAI_MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const THAI_MONTHS_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const DAYS_OF_WEEK = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+const REGION_MAP: Record<number, string> = { 1: "ภาคเหนือ", 2: "ภาคกลาง", 3: "ภาคตะวันออกเฉียงเหนือ", 4: "ภาคตะวันตก", 5: "ภาคตะวันออก", 6: "ภาคใต้" };
 
+/**
+ * คำอธิบาย : ฟังก์ชัน Component สำหรับเรนเดอร์หน้าแรก
+ * Input: -
+ * Output: UI ของหน้าแรก (แบนเนอร์, ปฏิทิน, หมวดหมู่, และรายการกิจกรรม)
+ */
 export default function HomePage() {
   const [banners, setBanners] = useState<string[]>([]);
-  const [currentBanner, setCurrentBanner] = useState(0);
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // ================= Calendar States =================
+  // Location States
+  const [thaiData, setThaiData] = useState<any[]>([]);
+  const [regionOptions, setRegionOptions] = useState<string[]>([]);
+  const [availableProvinces, setAvailableProvinces] = useState<any[]>([]);
+
+  // Search & Pagination States
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [activeSearch, setActiveSearch] = useState({ keyword: '', zone: '', province: '' });
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+
+  // Calendar States
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [selectedDate, setSelectedDate] = useState<Date | null>(null); 
   const [showMonthPicker, setShowMonthPicker] = useState(false); 
+  const [activitiesForCalendar, setActivitiesForCalendar] = useState<any[]>([]);
 
-  const API_BASE_URL = "http://localhost:3000/api";
-  const IMAGE_BASE_URL = "http://localhost:3000";
+  const IMAGE_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:3000";
 
+  /**
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลตั้งต้น ได้แก่ ภูมิภาค/จังหวัด และ แบนเนอร์ (ทำงานครั้งเดียวตอนโหลดหน้า)
+   * Input: -
+   * Output: -
+   */
   useEffect(() => {
-    const fetchHomeData = async () => {
+    const fetchInitData = async () => {
       try {
-        const actRes = await fetch(`${API_BASE_URL}/home/activities`);
-        const actData = await actRes.json();
-        if (actData.data) {
-          setActivities(actData.data);
-        }
-
-        const bannerRes = await fetch(`${API_BASE_URL}/home`);
-        if (bannerRes.ok) {
-           const result = await bannerRes.json();
-           if (!result.error && result.data?.carouselImages) {
-             const images = result.data.carouselImages.map((b: any) => b.image);
-             setBanners(images.length > 0 ? images : ['/placeholder-banner.jpg']); 
-           }
-        } else {
-           setBanners(['/placeholder-banner.jpg']);
-        }
+        // Location
+        const data = await locationService.getThaiData();
+        setThaiData(data);
+        setRegionOptions(Array.from(new Set(data.map((p: any) => REGION_MAP[p.geography_id]))).filter(Boolean) as string[]);
+        
+        // Banners
+        const bannerImages = await homeService.getBanners();
+        setBanners(bannerImages.length > 0 ? bannerImages : ['/placeholder-banner.jpg']);
       } catch (error) {
-        console.error("Error fetching home data:", error);
+        console.error("Init data error:", error);
       }
     };
-
-    fetchHomeData();
+    fetchInitData();
   }, []);
 
+  /**
+   * คำอธิบาย : Hook สำหรับอัปเดตตัวเลือกจังหวัดเมื่อผู้ใช้งานเปลี่ยนภูมิภาค (Zone)
+   * Input: -
+   * Output: -
+   */
   useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % banners.length);
-    }, 5000); 
-    return () => clearInterval(interval);
-  }, [banners.length]);
+    if (activeSearch.zone) {
+      setAvailableProvinces(thaiData.filter(p => REGION_MAP[p.geography_id] === activeSearch.zone));
+    } else {
+      setAvailableProvinces([]);
+    }
+  }, [activeSearch.zone, thaiData]);
 
-  const getImageUrl = (imagePath: string) => {
+  /**
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลกิจกรรมเพื่อแสดงเป็นจุดไข่ปลาบนปฏิทิน (ทำงานทุกครั้งที่เปลี่ยนเดือนบนปฏิทิน)
+   * Input: -
+   * Output: -
+   */
+  useEffect(() => {
+    const fetchCalendarDots = async () => {
+      const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString().split('T')[0];
+      const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString().split('T')[0];
+      const allActivities = await homeService.getCalendarActivities(start, end);
+      setActivitiesForCalendar(allActivities);
+    };
+    fetchCalendarDots();
+  }, [currentDate]);
+
+  /**
+   * คำอธิบาย : Hook สำหรับโหลดรายการกิจกรรมที่จะแสดงผลในหน้าเว็บ (ทำงานเมื่อเปลี่ยนการค้นหา หมวดหมู่ วันที่ หรือหน้า)
+   * Input: -
+   * Output: -
+   */
+  useEffect(() => {
+    const fetchActivities = async () => {
+       setLoading(true);
+       try {
+         const formatYMD = (d: Date) => new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+         
+         let searchStartDateStr, searchEndDateStr;
+         if (selectedDate) {
+            const prevDay = new Date(selectedDate); prevDay.setDate(prevDay.getDate() - 1);
+            const nextDay = new Date(selectedDate); nextDay.setDate(nextDay.getDate() + 1);
+            searchStartDateStr = formatYMD(prevDay);
+            searchEndDateStr = formatYMD(nextDay);
+         } else {
+            searchStartDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+            searchEndDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59));
+         }
+
+         const responseData = await homeService.searchActivities({
+           keyword: activeSearch.keyword || undefined,
+           zone: activeSearch.zone || undefined,
+           province: activeSearch.province || undefined,
+           type: selectedCategory !== 'ALL' ? selectedCategory : undefined,
+           startDate: searchStartDateStr,
+           endDate: searchEndDateStr,
+           page: page
+         });
+         
+         if (page === 1) setActivities(responseData.data);
+         else setActivities(prev => [...prev, ...responseData.data]);
+         
+         setHasNextPage(responseData.pagination.hasNextPage);
+       } catch (error) {
+         console.error("Search error:", error);
+       } finally {
+         setLoading(false);
+       }
+    };
+    fetchActivities();
+  }, [page, selectedCategory, activeSearch, selectedDate, currentDate]);
+
+  /**
+   * คำอธิบาย : ฟังก์ชันแปลงเส้นทาง (Path) ของรูปภาพให้เป็น URL ที่ถูกต้องสำหรับแสดงผล
+   * Input: imagePath (string)
+   * Output: string (URL ที่สมบูรณ์)
+   */
+  const getImageUrlPath = (imagePath: string) => {
     if (!imagePath || imagePath === '/placeholder-banner.jpg') return 'https://placehold.co/1920x600?text=Banner';
     let cleanPath = imagePath.replace(/\\/g, '/');
-    if (!cleanPath.includes('uploads/')) {
-      cleanPath = cleanPath.startsWith('/') ? `uploads${cleanPath}` : `uploads/${cleanPath}`;
-    }
+    if (!cleanPath.includes('uploads/')) cleanPath = cleanPath.startsWith('/') ? `uploads${cleanPath}` : `uploads/${cleanPath}`;
     return cleanPath.startsWith('/') ? `${IMAGE_BASE_URL}${cleanPath}` : `${IMAGE_BASE_URL}/${cleanPath}`;
   };
 
-  // ================= Helper Calendar =================
+  // ================= Calendar Logic Helpers =================
+
+  /**
+   * คำอธิบาย : ฟังก์ชันเช็คว่าวันที่ระบุ อยู่ในช่วงวันจัดกิจกรรมนั้นๆ หรือไม่
+   * Input: date (Date), activity (any)
+   * Output: boolean
+   */
   const isDateInActivity = (date: Date, activity: any) => {
-    if (!activity.startDate || !activity.dueDate) return false;
-    const targetDate = new Date(date).setHours(0,0,0,0);
-    const startDate = new Date(activity.startDate).setHours(0,0,0,0);
-    const dueDate = new Date(activity.dueDate).setHours(0,0,0,0);
-    return targetDate >= startDate && targetDate <= dueDate;
+    if (!activity.startDate) return false;
+    const target = new Date(date).setHours(0,0,0,0);
+    const start = new Date(activity.startDate).setHours(0,0,0,0);
+    const end = activity.dueDate ? new Date(activity.dueDate).setHours(0,0,0,0) : start;
+    return target >= start && target <= end;
   };
+  
+  /**
+   * คำอธิบาย : ฟังก์ชันตรวจสอบว่าวันดังกล่าวมีกิจกรรมจัดขึ้นหรือไม่ (สำหรับจุดไข่ปลา)
+   * Input: date (Date)
+   * Output: boolean
+   */
+  const hasActivityOnDate = (date: Date) => activitiesForCalendar.some(act => isDateInActivity(date, act));
 
-  const hasActivityOnDate = (date: Date) => {
-    return activities.some(act => isDateInActivity(date, act));
-  };
+  /**
+   * คำอธิบาย : ฟังก์ชันตรวจสอบว่า Date 2 อัน เป็นวันเดียวกันหรือไม่
+   * Input: d1 (Date | null), d2 (Date)
+   * Output: boolean
+   */
+  const isSameDay = (d1: Date | null, d2: Date) => d1?.getDate() === d2.getDate() && d1?.getMonth() === d2.getMonth() && d1?.getFullYear() === d2.getFullYear();
 
-  const isSameDay = (d1: Date | null, d2: Date) => {
-    if (!d1) return false;
-    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
-  };
-
+  /**
+   * คำอธิบาย : ฟังก์ชันคำนวณจำนวนวันในปฏิทินเพื่อนำมาแสดงในตาราง (รวมวันของเดือนก่อน/หลัง ที่อยู่ในกริด)
+   * Input: -
+   * Output: Array ของข้อมูลวันที่
+   */
   const getDaysInMonth = () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const daysInPrevMonth = new Date(year, month, 0).getDate();
-
+    const y = currentDate.getFullYear(), m = currentDate.getMonth();
+    const firstDay = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrevMonth = new Date(y, m, 0).getDate();
+    
     const days = [];
-    for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({ day: daysInPrevMonth - i, isCurrentMonth: false, date: new Date(year, month - 1, daysInPrevMonth - i) });
-    }
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push({ day: i, isCurrentMonth: true, date: new Date(year, month, i) });
-    }
+    for (let i = firstDay - 1; i >= 0; i--) days.push({ day: daysInPrevMonth - i, isCurrentMonth: false, date: new Date(y, m - 1, daysInPrevMonth - i) });
+    for (let i = 1; i <= daysInMonth; i++) days.push({ day: i, isCurrentMonth: true, date: new Date(y, m, i) });
     const remainingSlots = 42 - days.length;
-    for (let i = 1; i <= remainingSlots; i++) {
-      days.push({ day: i, isCurrentMonth: false, date: new Date(year, month + 1, i) });
-    }
+    for (let i = 1; i <= remainingSlots; i++) days.push({ day: i, isCurrentMonth: false, date: new Date(y, m + 1, i) });
     return days;
   };
 
-  // ⭐ ฟังก์ชันสำหรับจัดรูปแบบวันที่แบบช่วง (Range)
+  /**
+   * คำอธิบาย : ฟังก์ชันจัดรูปแบบช่วงวันที่จัดกิจกรรมสำหรับแสดงผลในหน้าการ์ดกิจกรรม
+   * Input: startStr (string), endStr (string)
+   * Output: string (เช่น "1 ม.ค. 67 - 5 ม.ค. 67")
+   */
   const formatDateRange = (startStr: string, endStr: string) => {
     if (!startStr) return '-';
-    const startDate = new Date(startStr).toLocaleDateString('th-TH');
-    if (!endStr) return startDate;
-    const endDate = new Date(endStr).toLocaleDateString('th-TH');
-    
-    // ถ้าวันเริ่มกับวันจบเป็นวันเดียวกัน ให้แสดงแค่วันเดียว
-    if (startDate === endDate) return startDate;
-    return `${startDate} - ${endDate}`;
+    const s = new Date(startStr).toLocaleDateString('th-TH');
+    const e = endStr ? new Date(endStr).toLocaleDateString('th-TH') : s;
+    return s === e ? s : `${s} - ${e}`;
   };
 
-  // ================= กรองกิจกรรม =================
-  const filteredActivities = activities.filter(activity => {
-    // 1. กรองตามหมวดหมู่
-    const matchCategory = selectedCategory === 'ALL' || activity.activityType === selectedCategory;
-    
-    // 2. กรองให้แสดงเฉพาะกิจกรรมที่อยู่ในเดือนที่เลือก (currentDate)
-    let matchMonth = false;
-    if (activity.startDate) {
-      const start = new Date(activity.startDate);
-      const end = activity.dueDate ? new Date(activity.dueDate) : start;
-      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
-      // เช็คว่าระยะเวลากิจกรรมคาบเกี่ยวเข้ามาในเดือนที่กำลังเปิดดูปฏิทินหรือไม่
-      matchMonth = start <= monthEnd && end >= monthStart;
-    }
-
-    // 3. กรองตามวันที่เลือกจากปฏิทิน (ถ้ามีการคลิกเลือกวัน)
-    const matchDate = selectedDate ? isDateInActivity(selectedDate, activity) : true;
-    
-    return matchCategory && matchMonth && matchDate;
-  });
-
+  /**
+   * คำอธิบาย : Component สำหรับสร้างปุ่มเลือกหมวดหมู่ (Category Button)
+   * Input: typeKey (string - รหัสหมวดหมู่), label (string - ข้อความบนปุ่ม)
+   * Output: JSX Element
+   */
   const CategoryButton = ({ typeKey, label }: { typeKey: string, label: string }) => (
     <button 
-      onClick={() => setSelectedCategory(typeKey)}
-      className={`px-5 py-2 rounded-full text-sm font-medium transition border ${
-        selectedCategory === typeKey 
-          ? 'bg-[#712874] text-white border-[#712874]' 
-          : 'bg-white text-gray-600 border-gray-200 hover:border-[#712874]'
-      }`}
+      onClick={() => { setSelectedCategory(typeKey); setPage(1); }}
+      className={`px-5 py-2 rounded-full text-sm font-medium transition border ${selectedCategory === typeKey ? 'bg-[#712874] text-white border-[#712874]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#712874]'}`}
     >
       {label}
     </button>
   );
+
+  const displayActivities = selectedDate ? activities.filter(act => isDateInActivity(selectedDate, act)) : activities;
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] font-sans">
@@ -172,69 +253,28 @@ export default function HomePage() {
         <Link 
           to="/" 
           onClick={() => {
-            // เลื่อนหน้าจอกลับไปบนสุดอย่างนุ่มนวล
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            // รีเซ็ตค่าการกรองต่างๆ ให้กลับเป็นค่าเริ่มต้น
-            setSelectedCategory('ALL');
-            setSelectedDate(null);
-            setCurrentDate(new Date());
+            setSelectedCategory('ALL'); setSelectedDate(null); setCurrentDate(new Date());
+            setActiveSearch({ keyword: '', zone: '', province: ''}); setPage(1);
           }}
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
           <img src={logo} alt="Festia Logo" className="w-10 h-10 object-contain" />
           <span className="text-xl font-bold text-[#712874]">Festia Calendar</span>
         </Link>
-        <div className="flex items-center gap-4">
-          <Link to="/register" className="px-6 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-full hover:bg-gray-50 transition">
-            ลงทะเบียน
-          </Link>
-          <Link to="/login" className="px-6 py-2 text-sm font-medium text-white bg-[#712874] rounded-full hover:bg-purple-900 transition">
-            เข้าสู่ระบบ
-          </Link>
-        </div>
       </nav>
 
-      {/* ================= Hero Banner & Search ================= */}
-      <div className="relative h-[450px] w-full flex flex-col items-center justify-center overflow-hidden">
-        {banners.map((img, index) => (
-          <img 
-            key={index}
-            src={getImageUrl(img)} 
-            alt={`Banner ${index}`}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index === currentBanner ? 'opacity-100' : 'opacity-0'}`}
-          />
-        ))}
-        <div className="absolute inset-0 bg-black/40 z-10" />
-
-        <div className="relative z-20 text-center w-full max-w-5xl px-4">
-          <h1 className="text-4xl font-bold text-white mb-8 drop-shadow-lg">
-            ค้นพบกิจกรรมและเทศกาลทั่วไทย
-          </h1>
-          
-          <div className="bg-white/95 p-3 rounded-xl flex flex-col md:flex-row gap-3 shadow-xl">
-            <div className="flex-1">
-              <input 
-                type="text" 
-                placeholder="พิมพ์ชื่อเทศกาล หรือกิจกรรมที่ต้องการ"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-[#712874]"
-              />
-            </div>
-            <div className="w-full md:w-48">
-              <select className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none text-gray-600">
-                <option>เลือกภูมิภาค (ทั้งหมด)</option>
-              </select>
-            </div>
-            <div className="w-full md:w-48">
-              <select className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none text-gray-600">
-                <option>เลือกจังหวัด (ทั้งหมด)</option>
-              </select>
-            </div>
-            <button className="w-full md:w-32 bg-[#FF9800] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#F57C00] transition flex items-center justify-center gap-2 shadow-md">
-              <Search size={20} /> ค้นหา
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ================= Banner & Search ================= */}
+      <HomeBanner 
+        banners={banners}
+        getImageUrlPath={getImageUrlPath}
+        regionOptions={regionOptions}
+        availableProvinces={availableProvinces}
+        onSearch={(keyword, zone, province) => {
+          setActiveSearch({ keyword, zone, province });
+          setPage(1);
+        }}
+      />
 
       {/* ================= Main Content ================= */}
       <div className="max-w-6xl mx-auto px-4 py-12 flex flex-col md:flex-row gap-8">
@@ -244,19 +284,15 @@ export default function HomePage() {
           
           {/* Calendar Widget */}
           <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] relative">
-            
             <div className="flex justify-between items-center mb-6 text-[#4A154B]">
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={24} strokeWidth={2.5}/></button>
+              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={24} strokeWidth={2.5}/></button>
               
-              <div 
-                className="flex items-center gap-2 cursor-pointer hover:opacity-80 font-bold text-[18px]"
-                onClick={() => setShowMonthPicker(!showMonthPicker)}
-              >
+              <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 font-bold text-[18px]" onClick={() => setShowMonthPicker(!showMonthPicker)}>
                 <span>{THAI_MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                 {showMonthPicker ? <ChevronDown size={20} className="rotate-180 transition-transform" /> : <ChevronDown size={20} className="transition-transform"/>}
               </div>
 
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={24} strokeWidth={2.5}/></button>
+              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={24} strokeWidth={2.5}/></button>
             </div>
             
             <div className="grid grid-cols-7 text-center text-[13px] mb-4 font-bold text-[#4A154B]">
@@ -267,26 +303,20 @@ export default function HomePage() {
               {getDaysInMonth().map((item, idx) => {
                 const isSelected = isSameDay(selectedDate, item.date);
                 const hasEvent = hasActivityOnDate(item.date);
-                
                 return (
                   <div 
                     key={idx} 
                     onClick={() => {
-                      if (!item.isCurrentMonth) {
-                         setCurrentDate(item.date);
-                      }
+                      if (!item.isCurrentMonth) setCurrentDate(item.date);
                       setSelectedDate(isSelected ? null : item.date);
+                      setPage(1);
                     }}
-                    className={`
-                      relative aspect-square flex flex-col items-center justify-center font-medium cursor-pointer transition rounded-sm
+                    className={`relative aspect-square flex flex-col items-center justify-center font-medium cursor-pointer transition rounded-sm
                       ${item.isCurrentMonth ? 'text-gray-800 bg-[#E5E7EB]' : 'text-gray-400 bg-gray-100/50'}
-                      ${isSelected ? '!bg-[#4A154B] !text-white' : 'hover:bg-gray-300'}
-                    `}
+                      ${isSelected ? '!bg-[#4A154B] !text-white' : 'hover:bg-gray-300'}`}
                   >
                     <span className="mb-0.5">{item.day}</span>
-                    {hasEvent && (
-                      <div className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-[#FF9800]' : 'bg-[#FF9800]'}`}></div>
-                    )}
+                    {hasEvent && <div className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#FF9800]'}`}></div>}
                   </div>
                 );
               })}
@@ -297,33 +327,18 @@ export default function HomePage() {
               <div className="absolute inset-x-0 top-16 bg-white z-30 p-4 rounded-xl shadow-xl border border-gray-100 animate-fade-in-up">
                 <div className="relative flex justify-center items-center mb-4 border-b border-gray-100 pb-3">
                   <div className="flex items-center gap-4">
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1))} className="p-1 hover:bg-gray-100 rounded transition">
-                      <ChevronLeft size={20}/>
-                    </button>
-                    <span className="font-bold text-[#4A154B] text-[16px] w-12 text-center">
-                      {currentDate.getFullYear()}
-                    </span>
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1))} className="p-1 hover:bg-gray-100 rounded transition">
-                      <ChevronRight size={20}/>
-                    </button>
+                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={20}/></button>
+                    <span className="font-bold text-[#4A154B] text-[16px] w-12 text-center">{currentDate.getFullYear()}</span>
+                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={20}/></button>
                   </div>
-                  <button onClick={() => setShowMonthPicker(false)} className="absolute right-0 text-gray-400 hover:text-red-500 p-1">
-                    <X size={18}/>
-                  </button>
+                  <button onClick={() => setShowMonthPicker(false)} className="absolute right-0 text-gray-400 hover:text-red-500 p-1"><X size={18}/></button>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {THAI_MONTHS_SHORT.map((month, index) => (
                     <button 
                       key={month}
-                      onClick={() => {
-                        setCurrentDate(new Date(currentDate.getFullYear(), index, 1));
-                        setShowMonthPicker(false);
-                      }}
-                      className={`py-2 px-2 text-sm rounded-full transition-colors border ${
-                        currentDate.getMonth() === index 
-                          ? 'bg-[#4A154B] text-white border-[#4A154B]' 
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-[#4A154B]'
-                      }`}
+                      onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), index, 1)); setShowMonthPicker(false); setSelectedDate(null); setPage(1); }}
+                      className={`py-2 px-2 text-sm rounded-full transition-colors border ${currentDate.getMonth() === index ? 'bg-[#4A154B] text-white border-[#4A154B]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#4A154B]'}`}
                     >
                       {month}
                     </button>
@@ -337,25 +352,11 @@ export default function HomePage() {
           <div>
             <h3 className="text-[20px] font-bold text-[#712874] mb-5">ประเภทกิจกรรม</h3>
             <div className="flex flex-col gap-3 items-start">
-              <div className="flex flex-wrap gap-3">
-                <CategoryButton typeKey="ALL" label="ทั้งหมด" />
-                <CategoryButton typeKey="CULTURAL_FESTIVAL" label={ACTIVITY_TYPE_MAP['CULTURAL_FESTIVAL']} />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <CategoryButton typeKey="EXHIBITION_ART" label={ACTIVITY_TYPE_MAP['EXHIBITION_ART']} />
-                <CategoryButton typeKey="FOOD_DRINK_FESTIVAL" label={ACTIVITY_TYPE_MAP['FOOD_DRINK_FESTIVAL']} />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <CategoryButton typeKey="PERFORMANCE_MUSIC" label={ACTIVITY_TYPE_MAP['PERFORMANCE_MUSIC']} />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <CategoryButton typeKey="MARKET_FAIR" label={ACTIVITY_TYPE_MAP['MARKET_FAIR']} />
-                <CategoryButton typeKey="TRAINING_SEMINAR" label={ACTIVITY_TYPE_MAP['TRAINING_SEMINAR']} />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <CategoryButton typeKey="SPORT_RECREATION" label={ACTIVITY_TYPE_MAP['SPORT_RECREATION']} />
-                <CategoryButton typeKey="COMMUNITY_TOURISM" label={ACTIVITY_TYPE_MAP['COMMUNITY_TOURISM']} />
-              </div>
+              <div className="flex flex-wrap gap-3"><CategoryButton typeKey="ALL" label="ทั้งหมด" /><CategoryButton typeKey="CULTURAL_FESTIVAL" label={ACTIVITY_TYPE_MAP['CULTURAL_FESTIVAL']} /></div>
+              <div className="flex flex-wrap gap-3"><CategoryButton typeKey="EXHIBITION_ART" label={ACTIVITY_TYPE_MAP['EXHIBITION_ART']} /><CategoryButton typeKey="FOOD_DRINK_FESTIVAL" label={ACTIVITY_TYPE_MAP['FOOD_DRINK_FESTIVAL']} /></div>
+              <div className="flex flex-wrap gap-3"><CategoryButton typeKey="PERFORMANCE_MUSIC" label={ACTIVITY_TYPE_MAP['PERFORMANCE_MUSIC']} /></div>
+              <div className="flex flex-wrap gap-3"><CategoryButton typeKey="MARKET_FAIR" label={ACTIVITY_TYPE_MAP['MARKET_FAIR']} /><CategoryButton typeKey="TRAINING_SEMINAR" label={ACTIVITY_TYPE_MAP['TRAINING_SEMINAR']} /></div>
+              <div className="flex flex-wrap gap-3"><CategoryButton typeKey="SPORT_RECREATION" label={ACTIVITY_TYPE_MAP['SPORT_RECREATION']} /><CategoryButton typeKey="COMMUNITY_TOURISM" label={ACTIVITY_TYPE_MAP['COMMUNITY_TOURISM']} /></div>
             </div>
           </div>
         </div>
@@ -367,59 +368,51 @@ export default function HomePage() {
           </h2>
           
           <div className="flex flex-col gap-6">
-            {filteredActivities.length > 0 ? (
-              filteredActivities.map((activity, index) => (
-                <div key={activity.id || index} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col sm:flex-row hover:shadow-md transition-shadow">
-                  <div className="w-full sm:w-[220px] h-[260px] sm:h-auto flex-shrink-0">
-                    <img 
-                      src={activity.activityFile?.[0]?.filePath ? getImageUrl(activity.activityFile[0].filePath) : 'https://placehold.co/300x400/f3f4f6/a1a1aa?text=No+Image'} 
-                      alt={activity.name} 
-                      className="w-full h-full object-cover" 
-                    />
-                  </div>
-                  
-                  <div className="p-6 flex flex-col justify-center w-full relative">
-                    <Link to={`/activity/${activity.id}`} className="absolute inset-0 z-10"></Link>
-
-                    <h3 className="text-[18px] font-bold text-[#712874] mb-2">{activity.name}</h3>
-                    <p className="text-sm text-gray-500 mb-6 leading-relaxed border-b border-gray-100 pb-4 line-clamp-2">
-                      {activity.tagline || activity.description || '-'}
-                    </p>
-                    
-                    <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm relative z-20 pointer-events-none">
-                      <div>
-                        <span className="block font-bold text-[#712874] mb-1">วันที่</span>
-                        <span className="text-gray-600">
-                          {/* ⭐ เรียกใช้ฟังก์ชัน formatDateRange ตรงนี้ */}
-                          {formatDateRange(activity.startDate, activity.dueDate)}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block font-bold text-[#712874] mb-1">สถานที่</span>
-                        <span className="text-gray-600 truncate block pr-2" title={activity.location?.name}>
-                           {activity.location?.name || '-'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block font-bold text-[#712874] mb-1">ค่าเข้าชม</span>
-                        <span className="text-green-600 font-bold">{activity.price ? `${Number(activity.price).toLocaleString()} ฿` : 'ฟรี'}</span>
-                      </div>
-                      <div>
-                        <span className="block font-bold text-[#712874] mb-1">ติดต่อ</span>
-                        <span className="text-gray-600 truncate block pr-2">{activity.phone || '-'}</span>
-                      </div>
+            {loading && page === 1 ? (
+               <div className="text-center text-gray-500 py-10">กำลังค้นหาข้อมูล...</div>
+            ) : displayActivities.length > 0 ? (
+              <>
+                 {displayActivities.map((activity, index) => (
+                   <div key={activity.id || index} className="bg-white rounded-2xl overflow-hidden shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col sm:flex-row hover:shadow-md transition-shadow">
+                     <div className="w-full sm:w-[220px] h-[260px] sm:h-auto flex-shrink-0">
+                       <img src={activity.activityFile?.[0]?.filePath ? getImageUrlPath(activity.activityFile[0].filePath) : 'https://placehold.co/300x400/f3f4f6/a1a1aa?text=No+Image'} alt={activity.name} className="w-full h-full object-cover" />
+                     </div>
+                     <div className="p-6 flex flex-col justify-center w-full relative">
+                       <Link to={`/activity/${activity.id}`} className="absolute inset-0 z-10"></Link>
+                       <h3 className="text-[18px] font-bold text-[#712874] mb-2">{activity.name}</h3>
+                       <p className="text-sm text-gray-500 mb-6 leading-relaxed border-b border-gray-100 pb-4 line-clamp-2">{activity.tagline || activity.description || '-'}</p>
+                       <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm relative z-20 pointer-events-none">
+                         <div><span className="block font-bold text-[#712874] mb-1">วันที่</span><span className="text-gray-600">{formatDateRange(activity.startDate, activity.dueDate)}</span></div>
+                         <div><span className="block font-bold text-[#712874] mb-1">สถานที่</span><span className="text-gray-600 truncate block pr-2" title={activity.location?.name}>{activity.location?.name || '-'}</span></div>
+                         <div><span className="block font-bold text-[#712874] mb-1">ค่าเข้าชม</span><span className="text-green-600 font-bold">{activity.price ? `${Number(activity.price).toLocaleString()} ฿` : 'ฟรี'}</span></div>
+                         <div><span className="block font-bold text-[#712874] mb-1">ติดต่อ</span><span className="text-gray-600 truncate block pr-2">{activity.phone || '-'}</span></div>
+                       </div>
+                     </div>
+                   </div>
+                 ))}
+                 
+                 {hasNextPage && (
+                    <div className="text-center mt-4 relative z-30">
+                       <button onClick={() => setPage(prev => prev + 1)} disabled={loading} className="px-6 py-2 border border-[#712874] text-[#712874] rounded-full hover:bg-purple-50 transition-colors font-medium disabled:opacity-50 cursor-pointer">
+                          {loading ? 'กำลังโหลด...' : 'โหลดกิจกรรมเพิ่มเติม'}
+                       </button>
                     </div>
-                  </div>
-                </div>
-              ))
+                 )}
+              </>
             ) : (
-              <div className="bg-white rounded-2xl p-10 text-center border border-gray-100 shadow-sm text-gray-500">
-                ยังไม่มีข้อมูลกิจกรรมสำหรับหมวดหมู่หรือวันที่ที่เลือก
-              </div>
+              <>
+                <div className="bg-white rounded-2xl p-10 text-center border border-gray-100 shadow-sm text-gray-500">ยังไม่มีข้อมูลกิจกรรมสำหรับหมวดหมู่หรือวันที่ที่เลือก</div>
+                {hasNextPage && (
+                    <div className="text-center mt-4 relative z-30">
+                       <button onClick={() => setPage(prev => prev + 1)} disabled={loading} className="px-6 py-2 border border-[#712874] text-[#712874] rounded-full hover:bg-purple-50 transition-colors font-medium disabled:opacity-50 cursor-pointer">
+                          {loading ? 'กำลังโหลด...' : 'โหลดกิจกรรมเพิ่มเติม (อาจมีข้อมูลหน้าถัดไป)'}
+                       </button>
+                    </div>
+                 )}
+              </>
             )}
           </div>
         </div>
-
       </div>
 
       {/* ================= Footer ================= */}
@@ -427,20 +420,11 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-purple-800 pb-8 mb-6">
           <div>
             <h3 className="text-xl font-bold mb-3">ช่วยเหลือ</h3>
-            <div className="flex items-center gap-2 text-purple-200">
-              <Phone size={18} />
-              <span>08x-xxx-xxx</span>
-            </div>
+            <div className="flex items-center gap-2 text-purple-200"><Phone size={18} /><span>08x-xxx-xxx</span></div>
           </div>
-          <div>
-            <Link to="/admin/login" className="bg-white text-[#712874] px-6 py-2.5 rounded-full font-medium text-sm hover:bg-gray-100 transition shadow-md">
-              เข้าสู่ระบบ Admin
-            </Link>
-          </div>
+          <div><Link to="/admin/login" className="bg-white text-[#712874] px-6 py-2.5 rounded-full font-medium text-sm hover:bg-gray-100 transition shadow-md relative z-30">เข้าสู่ระบบ Admin</Link></div>
         </div>
-        <div className="text-center text-purple-300 text-sm">
-          © 2026 Festia Calendar. All rights reserved.
-        </div>
+        <div className="text-center text-purple-300 text-sm">© 2026 Festia Calendar. All rights reserved.</div>
       </footer>
     </div>
   );

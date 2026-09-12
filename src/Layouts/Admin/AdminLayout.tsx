@@ -1,7 +1,7 @@
 /**
- * คำอธิบาย : โครงสร้างหลัก (Layout) สำหรับส่วนของ Superadmin
- * ประกอบด้วย Sidebar สำหรับแสดงเมนูนำทาง (Navigation) ข้อมูลการจัดการระดับสูง และ Topbar สำหรับแสดงโปรไฟล์
- * ใช้แสดงครอบทุกหน้าในส่วนของ Superadmin โดยเนื้อหาแต่ละหน้าจะถูกแสดงตรงส่วน <Outlet />
+ * คำอธิบาย : โครงสร้างหลัก (Layout) สำหรับส่วนของ Admin
+ * ประกอบด้วย Sidebar สำหรับแสดงเมนูนำทาง (Navigation) และ Topbar สำหรับแสดงโปรไฟล์ผู้ใช้งาน
+ * ใช้แสดงครอบทุกหน้าในส่วนของ Admin โดยเนื้อหาแต่ละหน้าจะถูกแสดงตรงส่วน <Outlet />
  */
 
 import React, { useEffect, useState } from 'react';
@@ -9,11 +9,11 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import logo from '../../assets/logoadmin.png';
 
 /**
- * คำอธิบาย : ฟังก์ชัน โครงสร้างหน้าสำหรับ Superadmin
+ * คำอธิบาย : ฟังก์ชัน โครงสร้างหน้าสำหรับ Admin
  * Input: -
- * Output: UI หลักที่มี Sidebar (ซ้าย), Topbar (บน), และพื้นที่แสดงเนื้อหา (ขวา) 
+ * Output: UI หลักที่มี Sidebar (ซ้าย), Topbar (บน), และพื้นที่แสดงเนื้อหา (ขวา)
  */
-export default function SuperadminLayout() {
+export default function AdminLayout() {
   const [currentUser, setCurrentUser] = useState<{ fname?: string; lname?: string } | null>(null);
   const location = useLocation();
 
@@ -30,11 +30,10 @@ export default function SuperadminLayout() {
     }
   }, []);
 
-  const fullName = currentUser ? `${currentUser.fname || ''} ${currentUser.lname || ''}`.trim() : 'Super Admin';
+  const fullName = currentUser ? `${currentUser.fname || ''} ${currentUser.lname || ''}`.trim() : 'Admin';
 
   /**
    * คำอธิบาย : ฟังก์ชันเช็คว่าหน้าปัจจุบันตรงกับเมนูไหนใน Sidebar เพื่อกำหนดสไตล์ให้เมนูนั้นเด่นขึ้น (Active)
-   * รองรับการตรวจสอบ Path ที่ซับซ้อน เช่น การแยกหน้าจัดการกิจกรรมออกจากหน้าประวัติและหน้าอนุมัติ
    * Input: path (URL ของเมนูที่ต้องการตรวจสอบ)
    * Output: string (CSS class name สำหรับกำหนดสไตล์ของปุ่มเมนู)
    */
@@ -42,19 +41,14 @@ export default function SuperadminLayout() {
     let isActive = false;
     const pathname = location.pathname;
 
-    if (path === '/superadmin/activity') {
-      // หน้าจัดการกิจกรรม (รวมถึงหน้า create, edit, detail แต่ต้องไม่ใช่ requests หรือ history)
-      isActive = pathname.startsWith('/superadmin/activity') && 
-                 !pathname.includes('/activity-requests') && 
-                 !pathname.includes('/history');
-    } else if (path === '/superadmin/activity-requests/approve') {
-      // หน้าอนุมัติกิจกรรม (ครอบคลุมทั้งหน้าตารางและหน้าดูรายละเอียดที่มี ID)
-      isActive = pathname.includes('/activity-requests');
-    } else if (path === '/superadmin/activity/history') {
+    if (path === '/admin/activity') {
+      // หน้าจัดการกิจกรรม (รวมถึงหน้า create, edit, detail แต่ต้องไม่ใช่ history)
+      isActive = pathname.startsWith('/admin/activity') && !pathname.includes('/history');
+    } else if (path === '/admin/activity/history') {
       // หน้าประวัติกิจกรรม (ครอบคลุมทั้งตารางและรายละเอียด)
       isActive = pathname.includes('/activity/history');
     } else {
-      // หน้าอื่นๆ ทั่วไป
+      // หน้าอื่นๆ ทั่วไป (เช่น dashboard)
       isActive = pathname.startsWith(path);
     }
 
@@ -76,22 +70,17 @@ export default function SuperadminLayout() {
         
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
           
-          <Link to="/superadmin/activity" className={getMenuClass('/superadmin/activity')}>
+          <Link to="/admin/activity" className={getMenuClass('/admin/activity')}>
             <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             จัดการกิจกรรม
           </Link>
 
-          <Link to="/superadmin/activity-requests/approve" className={getMenuClass('/superadmin/activity-requests/approve')}>
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            อนุมัติกิจกรรม
-          </Link>
-
-          <Link to="/superadmin/activity/history" className={getMenuClass('/superadmin/activity/history')}>
+          <Link to="/admin/activity/history" className={getMenuClass('/admin/activity/history')}>
             <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             ประวัติกิจกรรม
           </Link>
 
-          <Link to="/superadmin/dashboard" className={getMenuClass('/superadmin/dashboard')}>
+          <Link to="/admin/dashboard" className={getMenuClass('/admin/dashboard')}>
             <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
             รายงาน
           </Link>
@@ -99,17 +88,10 @@ export default function SuperadminLayout() {
         </nav>
 
         <div className="border-t border-gray-100 py-4 space-y-1 flex-shrink-0">
-          
-          <Link to="/superadmin/settings" className={getMenuClass('/superadmin/settings')}>
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            การตั้งค่า
-          </Link>
-
           <button onClick={() => { localStorage.clear(); window.location.href = '/'; }} className="flex items-center w-full px-6 py-3 text-gray-600 hover:bg-gray-50 font-medium transition-colors text-left border-l-4 border-transparent">
             <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
             ออกจากระบบ
           </button>
-
         </div>
       </aside>
 
