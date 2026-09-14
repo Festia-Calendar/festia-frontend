@@ -283,9 +283,40 @@ export default function HomePage() {
 
   const displayActivities = (dateRange[0] || dateRange[1]) ? activities.filter(isActivityInRange) : activities;
 
+  // ฟังก์ชันสำหรับสร้างข้อความหัวข้อของรายการกิจกรรมตามเงื่อนไขการค้นหาและช่วงวันที่
+  const getListTitle = () => {
+    if (activeSearch.keyword || activeSearch.zone || activeSearch.province || selectedCategory !== 'ALL') {
+      return "ผลการค้นหากิจกรรม";
+    }
+    
+    if (dateRange[0]) {
+      const start = dateRange[0];
+      const end = dateRange[1] || dateRange[0];
+      
+      const startDay = start.getDate();
+      const startMonth = THAI_MONTHS[start.getMonth()];
+      const startYear = start.getFullYear() + 543;
+      
+      const endDay = end.getDate();
+      const endMonth = THAI_MONTHS[end.getMonth()];
+      const endYear = end.getFullYear() + 543;
+
+      if (start.getTime() === end.getTime()) {
+        return `กิจกรรมวันที่ ${startDay} ${startMonth} ${startYear}`;
+      } else if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+        return `กิจกรรมวันที่ ${startDay} - ${endDay} ${startMonth} ${startYear}`;
+      } else {
+        return `กิจกรรมวันที่ ${startDay} ${startMonth} - ${endDay} ${endMonth} ${startYear}`;
+      }
+    }
+    
+    return `กิจกรรมเดือน ${THAI_MONTHS[currentDate.getMonth()]} ${currentDate.getFullYear() + 543}`;
+  };
+
   if (isCheckingStatus) {
     return <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9] text-[#712874]">กำลังตรวจสอบสถานะระบบ...</div>;
   }
+  
   if (!isSystemOnline) {
     return (
       <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center p-4 font-sans">
@@ -432,7 +463,7 @@ export default function HomePage() {
         {/* Right Column: Activity List */}
         <div className="w-full md:w-2/3">
           <h2 className="text-2xl font-bold text-[#712874] mb-6 flex items-center justify-between">
-            <span>กิจกรรมเดือน {THAI_MONTHS[currentDate.getMonth()]}</span>
+            <span>{getListTitle()}</span>
           </h2>
           
           <div className="flex flex-col gap-6">
