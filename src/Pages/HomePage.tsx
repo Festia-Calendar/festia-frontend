@@ -143,10 +143,16 @@ export default function HomePage() {
          if (dateRange[0] && dateRange[1]) {
            searchStartDateStr = formatYMD(dateRange[0]);
            searchEndDateStr = formatYMD(dateRange[1]);
-         } else if (dateRange[0] && !dateRange[1]) {
+         } 
+         else if (dateRange[0] && !dateRange[1]) {
            searchStartDateStr = formatYMD(dateRange[0]);
            searchEndDateStr = formatYMD(dateRange[0]);
-         } else {
+         } 
+         else if (activeSearch.keyword || activeSearch.zone || activeSearch.province || selectedCategory !== 'ALL') {
+           searchStartDateStr = undefined;
+           searchEndDateStr = undefined;
+         } 
+         else {
            searchStartDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
            searchEndDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59));
          }
