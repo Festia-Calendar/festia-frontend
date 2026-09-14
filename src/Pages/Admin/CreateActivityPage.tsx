@@ -1,6 +1,6 @@
 /**
  * คำอธิบาย : Component สำหรับหน้าจอ "สร้างกิจกรรมใหม่สำหรับ Admin" (Admin Create Activity Page)
- * ทำหน้าที่ให้ผู้ใช้งานที่มีสิทธิ์ Admin กรอกข้อมูลกิจกรรมใหม่, ระบุตำแหน่งบนแผนที่ (Leaflet Map), กำหนดการย่อย, และอัปโหลดไฟล์สื่อเพื่อส่งคำขอสร้างกิจกรรมเข้าสู่ระบบ
+ * ทำหน้าที่ให้ผู้ใช้งานที่มีสิทธิ์ Admin กรอกข้อมูลกิจกรรมใหม่, รองรับโหมดแบบร่าง (DRAFT), ระบุตำแหน่งบนแผนที่, และอัปโหลดไฟล์
  */
 
 import React, { useState, useEffect } from 'react';
@@ -35,8 +35,6 @@ const REGION_MAP: Record<number, string> = {
 
 /**
  * คำอธิบาย : Component ย่อยสำหรับจัดการการคลิกเลือกพิกัดบนแผนที่ (Leaflet Map)
- * Input: position (พิกัดปัจจุบัน), setPosition, setFormData, setErrors
- * Output: หมุดตำแหน่ง (Marker) บนแผนที่
  */
 function LocationSelector({ position, setPosition, setFormData, setErrors }: any) {
   useMapEvents({
@@ -47,7 +45,6 @@ function LocationSelector({ position, setPosition, setFormData, setErrors }: any
         latitude: String(e.latlng.lat),
         longitude: String(e.latlng.lng)
       }));
-      // ล้าง Error ของแผนที่เวลาปักหมุดแล้ว
       setErrors((prev: any) => ({ ...prev, map: '' }));
     },
   });
@@ -56,8 +53,6 @@ function LocationSelector({ position, setPosition, setFormData, setErrors }: any
 
 /**
  * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอสร้างกิจกรรมของ Admin
- * Input: -
- * Output: UI ฟอร์มสำหรับกรอกข้อมูลกิจกรรมสำหรับ Admin พร้อมระบบแผนที่และการอัปโหลดสื่อ
  */
 export default function AdminCreateActivityPage() {
   const navigate = useNavigate();
@@ -81,11 +76,6 @@ export default function AdminCreateActivityPage() {
   const [modalState, setModalState] = useState<ModalStateType>('none');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
 
-  /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทยจาก locationService
-   * Input: -
-   * Output: -
-   */
   useEffect(() => {
     const fetchThaiData = async () => {
       setIsLoadingLocation(true);
@@ -108,7 +98,6 @@ export default function AdminCreateActivityPage() {
   const selectedDistrictObj = availableDistricts.find((a: any) => a.name_th === formData.district);
   const availableSubDistricts = selectedDistrictObj ? (selectedDistrictObj.sub_districts || selectedDistrictObj.tambon || []) : [];
 
-  // เคลียร์ Error เวลามีการเลือกข้อมูลใหม่
   const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setFormData(prev => ({ ...prev, region: e.target.value, province: '', district: '', subDistrict: '' }));
     if (errors.region) setErrors(prev => ({ ...prev, region: '' }));
@@ -122,15 +111,9 @@ export default function AdminCreateActivityPage() {
     if (errors.district) setErrors(prev => ({ ...prev, district: '' }));
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดการการเปลี่ยนแปลงค่าในฟอร์ม พร้อมตรวจสอบและจำกัดรูปแบบข้อมูลเบอร์โทรศัพท์
-   * Input: e (Event)
-   * Output: -
-   */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    // ดักจับเฉพาะเบอร์โทรศัพท์ ให้กรอกได้แค่ตัวเลข และจำกัดแค่ 10 หลัก
     if (name === 'phone') {
       const onlyNums = value.replace(/[^0-9]/g, '');
       if (onlyNums.length <= 10) {
@@ -196,11 +179,16 @@ export default function AdminCreateActivityPage() {
 
   /**
    * คำอธิบาย : ฟังก์ชันตรวจสอบข้อมูลฟอร์มก่อนกด Submit (Validation)
-   * Input: -
-   * Output: boolean (True หากผ่านทุกเงื่อนไข)
+   * ข้ามการเช็คเงื่อนไขทั้งหมดหากสถานะเป็น DRAFT (ยกเว้นชื่อกิจกรรม)
    */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (formData.statusActivity === 'DRAFT') {
+      if (!formData.name.trim()) newErrors.name = "กรุณากรอกชื่อกิจกรรม (สำหรับบันทึกแบบร่าง)";
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    }
 
     if (!formData.name.trim()) newErrors.name = "กรุณากรอกชื่อกิจกรรม";
     if (!formData.activityType) newErrors.activityType = "กรุณาเลือกประเภทกิจกรรม";
@@ -232,29 +220,18 @@ export default function AdminCreateActivityPage() {
     if (!coverFile) newErrors.cover = "กรุณาอัปโหลดภาพโปสเตอร์กิจกรรม (Cover)";
 
     setErrors(newErrors);
-
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดการเมื่อกดปุ่มสร้างกิจกรรม ทำการ Validate ฟอร์มก่อนเปิด Modal ยืนยัน
-   * Input: e (Event)
-   * Output: -
-   */
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      setModalState('confirmCreate'); // เปิด Modal ยืนยันจากส่วนกลาง
+      setModalState('confirmCreate'); 
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดเตรียมข้อมูลและส่งคำขอสร้างกิจกรรมสำหรับ Admin ผ่านทาง activityService
-   * Input: -
-   * Output: -
-   */
   const confirmSubmit = async () => {
     setModalState('processing');
     setIsProcessing(true);
@@ -272,7 +249,6 @@ export default function AdminCreateActivityPage() {
             fileIndexes.push(flatScheduleFiles.length - 1);
           });
           
-          // แปลงวันที่และเวลาของ Schedule ให้เป็นแบบ ISO String 
           const startDateTime = day.date && slot.startTime 
             ? new Date(`${day.date}T${slot.startTime}:00`).toISOString()
             : "";
@@ -290,13 +266,12 @@ export default function AdminCreateActivityPage() {
         });
       });
 
-      // ดึงแค่วันที่ (YYYY-MM-DD) สำหรับ startDate และ dueDate ของกิจกรรมหลัก
       const activityStartDate = formData.startDate 
         ? new Date(`${formData.startDate}`).toISOString().split('T')[0] 
-        : "";
+        : undefined;
       const activityDueDate = formData.endDate 
         ? new Date(`${formData.endDate}`).toISOString().split('T')[0]
-        : "";
+        : undefined;
 
       const activityJson = {
         location: {
@@ -306,8 +281,8 @@ export default function AdminCreateActivityPage() {
           district: formData.district, 
           subDistrict: formData.subDistrict, 
           detail: formData.addressDetail,
-          latitude: Number(formData.latitude),
-          longitude: Number(formData.longitude)
+          latitude: Number(formData.latitude) || 0,
+          longitude: Number(formData.longitude) || 0
         },
         name: formData.name, 
         tagline: formData.tagline, 
@@ -340,11 +315,6 @@ export default function AdminCreateActivityPage() {
     }
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดการหลังจากบันทึกสำเร็จ นำผู้ใช้งานกลับไปที่หน้าจัดการกิจกรรมของ Admin
-   * Input: -
-   * Output: -
-   */
   const handleSuccessClose = () => {
     setModalState('none');
     navigate('/admin/activity');
@@ -383,7 +353,7 @@ export default function AdminCreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <Label title="ประเภทกิจกรรม" required />
+                <Label title="ประเภทกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="activityType" value={formData.activityType} onChange={handleChange} className={getInputClass('activityType')}>
                   <option value="">เลือกประเภทกิจกรรม</option>
                   <option value="PERFORMANCE_MUSIC">การแสดง ดนตรี และความบันเทิง</option>
@@ -412,20 +382,20 @@ export default function AdminCreateActivityPage() {
             </div>
 
             <div>
-              <Label title="คำโปรย" required />
+              <Label title="คำโปรย" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="tagline" value={formData.tagline} onChange={handleChange} placeholder="รายละเอียดสั้นๆ สำหรับแสดงหน้าแรก" className={getInputClass('tagline')} />
               {errors.tagline && <p className="text-red-500 text-[13px] mt-1.5">{errors.tagline}</p>}
             </div>
 
             <div>
-              <Label title="รายละเอียด" required />
+              <Label title="รายละเอียด" required={formData.statusActivity !== 'DRAFT'} />
               <textarea name="description" value={formData.description} onChange={handleChange} rows={5} placeholder="ระบุเนื้อหา กำหนดการ และรายละเอียดของกิจกรรม" className={`${getInputClass('description')} resize-y`}></textarea>
               {errors.description && <p className="text-red-500 text-[13px] mt-1.5">{errors.description}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="เบอร์โทรศัพท์" required />
+                <Label title="เบอร์โทรศัพท์" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="กรอกเบอร์โทรศัพท์ (ตัวเลข 10 หลัก)" className={getInputClass('phone')} />
                 {errors.phone && <p className="text-red-500 text-[13px] mt-1.5">{errors.phone}</p>}
               </div>
@@ -442,14 +412,14 @@ export default function AdminCreateActivityPage() {
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">วันเวลา และสถานที่ตั้ง</h2>
             
             <div>
-              <Label title="ชื่อสถานที่จัดงาน" required />
+              <Label title="ชื่อสถานที่จัดงาน" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="locationName" value={formData.locationName} onChange={handleChange} placeholder="เช่น วัดโพนชัย, ศูนย์การค้าเซ็นทรัล..." className={getInputClass('locationName')} />
               {errors.locationName && <p className="text-red-500 text-[13px] mt-1.5">{errors.locationName}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="ภูมิภาค" required />
+                <Label title="ภูมิภาค" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="region" value={formData.region} onChange={handleRegionChange} className={getInputClass('region')}>
                   <option value="">{isLoadingLocation ? "กำลังโหลดข้อมูล..." : "เลือกภูมิภาค"}</option>
                   {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
@@ -457,7 +427,7 @@ export default function AdminCreateActivityPage() {
                 {errors.region && <p className="text-red-500 text-[13px] mt-1.5">{errors.region}</p>}
               </div>
               <div>
-                <Label title="จังหวัด" required />
+                <Label title="จังหวัด" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="province" value={formData.province} onChange={handleProvinceChange} disabled={!formData.region || isLoadingLocation} className={getInputClass('province')}>
                   <option value="">เลือกจังหวัด</option>
                   {availableProvinces.map(p => <option key={p.id} value={p.name_th}>{p.name_th}</option>)}
@@ -468,7 +438,7 @@ export default function AdminCreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="อำเภอ / เขต" required />
+                <Label title="อำเภอ / เขต" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="district" value={formData.district} onChange={handleDistrictChange} disabled={!formData.province || isLoadingLocation} className={getInputClass('district')}>
                   <option value="">เลือกอำเภอ / เขต</option>
                   {availableDistricts.map((d: any) => <option key={d.id} value={d.name_th}>{d.name_th}</option>)}
@@ -476,7 +446,7 @@ export default function AdminCreateActivityPage() {
                 {errors.district && <p className="text-red-500 text-[13px] mt-1.5">{errors.district}</p>}
               </div>
               <div>
-                <Label title="ตำบล / แขวง" required />
+                <Label title="ตำบล / แขวง" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="subDistrict" value={formData.subDistrict} onChange={handleChange} disabled={!formData.district || isLoadingLocation} className={getInputClass('subDistrict')}>
                   <option value="">เลือกตำบล / แขวง</option>
                   {availableSubDistricts.map((sd: any) => <option key={sd.id} value={sd.name_th}>{sd.name_th}</option>)}
@@ -486,18 +456,18 @@ export default function AdminCreateActivityPage() {
             </div>
 
             <div>
-              <Label title="รายละเอียดที่อยู่" required />
+              <Label title="รายละเอียดที่อยู่" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="addressDetail" value={formData.addressDetail} onChange={handleChange} placeholder="เลขที่, ถนน, ซอย, อำเภอ" className={getInputClass('addressDetail')} />
               {errors.addressDetail && <p className="text-red-500 text-[13px] mt-1.5">{errors.addressDetail}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="ละติจูด" required />
+                <Label title="ละติจูด" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" value={formData.latitude} readOnly placeholder="ละติจูดของสถานที่จัดกิจกรรม" className={`${getInputClass('map')} bg-gray-50`} />
               </div>
               <div>
-                <Label title="ลองจิจูด" required />
+                <Label title="ลองจิจูด" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" value={formData.longitude} readOnly placeholder="ลองจิจูดของสถานที่จัดกิจกรรม" className={`${getInputClass('map')} bg-gray-50`} />
               </div>
             </div>
@@ -515,22 +485,22 @@ export default function AdminCreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Label title="วันที่เริ่มกิจกรรม" required />
+                <Label title="วันที่เริ่มกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} className={getInputClass('startDate')} />
                 {errors.startDate && <p className="text-red-500 text-[12px] mt-1">{errors.startDate}</p>}
               </div>
               <div>
-                <Label title="เวลาที่เริ่มกิจกรรม" required />
+                <Label title="เวลาที่เริ่มกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} className={getInputClass('startTime')} />
                 {errors.startTime && <p className="text-red-500 text-[12px] mt-1">{errors.startTime}</p>}
               </div>
               <div>
-                <Label title="วันที่สิ้นสุดกิจกรรม" required />
+                <Label title="วันที่สิ้นสุดกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} className={getInputClass('endDate')} />
                 {errors.endDate && <p className="text-red-500 text-[12px] mt-1">{errors.endDate}</p>}
               </div>
               <div>
-                <Label title="เวลาที่สิ้นสุดกิจกรรม" required />
+                <Label title="เวลาที่สิ้นสุดกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className={getInputClass('endTime')} />
                 {errors.endTime && <p className="text-red-500 text-[12px] mt-1">{errors.endTime}</p>}
               </div>
@@ -548,23 +518,23 @@ export default function AdminCreateActivityPage() {
                     </button>
                 )}
                 <div className="mb-6 w-full md:w-1/3 min-w-[200px]">
-                    <Label title="วันที่" required />
-                    <input type="date" value={day.date} onChange={(e) => handleScheduleChange(dayIndex, 'date', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                    <Label title="วันที่" required={formData.statusActivity !== 'DRAFT'} />
+                    <input type="date" value={day.date} onChange={(e) => handleScheduleChange(dayIndex, 'date', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                 </div>
                 {day.timeslots.map((slot, slotIndex) => (
                     <div key={slotIndex} className="space-y-4 mb-6 pb-6 border-b border-gray-200 border-dashed last:border-0 last:pb-0 last:mb-0">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                         <div className="md:col-span-3">
-                        <Label title="เวลาที่เริ่ม" required />
-                        <input type="time" value={slot.startTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'startTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                        <Label title="เวลาที่เริ่ม" required={formData.statusActivity !== 'DRAFT'} />
+                        <input type="time" value={slot.startTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'startTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                         </div>
                         <div className="md:col-span-3">
-                        <Label title="เวลาที่สิ้นสุด" required />
-                        <input type="time" value={slot.endTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'endTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                        <Label title="เวลาที่สิ้นสุด" required={formData.statusActivity !== 'DRAFT'} />
+                        <input type="time" value={slot.endTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'endTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                         </div>
                         <div className={slotIndex > 0 ? "md:col-span-5" : "md:col-span-6"}>
-                        <Label title="รายละเอียดกิจกรรมในช่วงเวลานี้" required />
-                        <textarea rows={1} value={slot.description} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'description', e.target.value)} placeholder="ระบุชื่อหรือรายละเอียดกิจกรรมย่อย" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white resize-y" required></textarea>
+                        <Label title="รายละเอียดกิจกรรมในช่วงเวลานี้" required={formData.statusActivity !== 'DRAFT'} />
+                        <textarea rows={1} value={slot.description} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'description', e.target.value)} placeholder="ระบุชื่อหรือรายละเอียดกิจกรรมย่อย" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white resize-y" required={formData.statusActivity !== 'DRAFT'}></textarea>
                         </div>
                         {slotIndex > 0 && (
                         <div className="md:col-span-1 flex items-end">
@@ -609,7 +579,7 @@ export default function AdminCreateActivityPage() {
               <div className="relative">
                 <div className="absolute -left-[33px] top-1 w-4 h-4 rounded-full bg-[#F59E0B] border-4 border-white shadow-sm"></div>
                 <div>
-                  <Label title="อัปโหลดภาพโปสเตอร์กิจกรรม (Cover)" required />
+                  <Label title="อัปโหลดภาพโปสเตอร์กิจกรรม (Cover)" required={formData.statusActivity !== 'DRAFT'} />
                   <div className="flex flex-wrap gap-3 mt-2">
                     {coverFile ? (
                       <div className="relative w-[140px] h-[100px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 overflow-hidden">

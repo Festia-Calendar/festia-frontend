@@ -1,10 +1,10 @@
 /**
- * คำอธิบาย : Component สำหรับหน้าแดชบอร์ดรายงานสถิติของสิทธิ์ผู้ดูแลระบบทั่วไป (Admin Dashboard Page)
- * ทำหน้าที่แสดงผลกราฟสถิติภาพรวม, ข้อมูลสรุปแยกตามประเภทกิจกรรมและรายเดือน, 
- * ตาราง 10 อันดับกิจกรรมยอดนิยมที่อยู่ภายใต้การดูแลของแอดมินคนนั้นๆ พร้อมระบบตัวกรองและฟังก์ชันส่งออกรายงาน (Export Report) เป็น PDF หรือ Excel
+ * คำอธิบาย : Component สำหรับหน้าแดชบอร์ด (Dashboard) ของระบบสำหรับสิทธิ์ Super Admin
+ * แสดงผลสถิติภาพรวม เช่น กราฟวงกลม (สัดส่วนกิจกรรมแต่ละประเภท), กราฟแท่ง (จำนวนกิจกรรมรายเดือน), 
+ * ตาราง 10 อันดับกิจกรรมยอดนิยม และมีฟังก์ชันสำหรับ Export รายงานสถิติเป็น PDF หรือ Excel
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LabelList, Legend
 } from 'recharts';
@@ -48,14 +48,13 @@ const PIE_COLORS = [
 // ================= Main Dashboard Component =================
 
 /**
- * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้า Dashboard ของ Admin
+ * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้า Dashboard ของ Super Admin
  * Input: -
- * Output: UI แสดงกราฟสถิติ, ตารางกิจกรรมยอดนิยม และเครื่องมือกรองข้อมูล/พิมพ์รายงาน
+ * Output: UI ของหน้า Dashboard ที่รวมตัวกรองข้อมูล กราฟสถิติ ตารางยอดนิยม และปุ่มส่งออกรายงาน
  */
-export default function AdminDashboardPage() {
+export default function DashboardSuperAdmin() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   
   // States สำหรับ Modal Export
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
@@ -80,7 +79,7 @@ export default function AdminDashboardPage() {
   const [modalAvailableProvinces, setModalAvailableProvinces] = useState<any[]>([]);
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลที่ตั้ง (จังหวัด อำเภอ ตำบล) ทั้งหมดของประเทศไทยจาก GitHub
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลจังหวัด อำเภอ ตำบล จาก API ภายนอก (ทำงานครั้งเดียวตอนโหลดหน้า)
    * Input: -
    * Output: -
    */
@@ -102,7 +101,7 @@ export default function AdminDashboardPage() {
   }, []);
 
   /**
-   * คำอธิบาย : Hook สำหรับกรองรายการจังหวัดในหน้าหลักตามภูมิภาคที่เลือก
+   * คำอธิบาย : Hook จัดการการกรองจังหวัดในหน้าหลัก เมื่อเลือกภูมิภาค (Zone)
    * Input: -
    * Output: -
    */
@@ -117,7 +116,7 @@ export default function AdminDashboardPage() {
   }, [selectedZone, thaiData]);
 
   /**
-   * คำอธิบาย : Hook สำหรับกรองรายการจังหวัดใน Modal Export ตามภูมิภาคที่เลือก
+   * คำอธิบาย : Hook จัดการการกรองจังหวัดใน Modal Export เมื่อเลือกภูมิภาค (Zone)
    * Input: -
    * Output: -
    */
@@ -133,8 +132,8 @@ export default function AdminDashboardPage() {
 
   /**
    * คำอธิบาย : ฟังก์ชันแปลงรูปแบบวันที่สำหรับส่งไปยัง Backend API (YYYY-MM-DD)
-   * Input: date (Date | null)
-   * Output: string | undefined
+   * Input: date (Date | null) - ค่าวันที่ต้องการแปลง
+   * Output: string (ตัวอย่าง: "2024-03-15") หรือ undefined หากไม่มีค่า
    */
   const formatDateForAPI = (date: Date | null) => {
     if (!date) return undefined;
@@ -145,7 +144,7 @@ export default function AdminDashboardPage() {
   };
 
   /**
-   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดผ่าน Service ของ Admin (getAdminDashboardData) เมื่อตัวกรองเปลี่ยนไป
+   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดจาก Backend เมื่อตัวกรอง (ภูมิภาค, จังหวัด, วันที่) มีการเปลี่ยนแปลง
    * Input: -
    * Output: -
    */
@@ -153,7 +152,7 @@ export default function AdminDashboardPage() {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        const data = await dashboardService.getAdminDashboardData({
+        const data = await dashboardService.getDashboardData({
           startDate: formatDateForAPI(dateRange[0]),
           endDate: formatDateForAPI(dateRange[1]),
           zone: selectedZone || undefined,
@@ -161,7 +160,7 @@ export default function AdminDashboardPage() {
         });
         setDashboardData(data);
       } catch (err: any) {
-        setError(err.response?.data?.message || 'ดึงข้อมูลแดชบอร์ดไม่สำเร็จ');
+        console.error(err.response?.data?.message || 'ดึงข้อมูลแดชบอร์ดไม่สำเร็จ');
       } finally {
         setLoading(false);
       }
@@ -203,7 +202,7 @@ export default function AdminDashboardPage() {
   }, [filteredProvinceData.length, reportRowsPerPage]);
 
   /**
-   * คำอธิบาย : ฟังก์ชันเปิด Modal พิมพ์รายงาน พร้อมคัดลอกค่าตัวกรองปัจจุบัน
+   * คำอธิบาย : ฟังก์ชันเปิด Modal สำหรับพิมพ์รายงาน และคัดลอกค่าฟิลเตอร์ปัจจุบันจากหน้าหลักมาใช้งาน
    * Input: -
    * Output: -
    */
@@ -214,9 +213,9 @@ export default function AdminDashboardPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานสถิติจังหวัดเป็นไฟล์ PDF
+   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานเป็นไฟล์ PDF โดยเรนเดอร์ HTML เป็นรูปภาพ (html-to-image) แล้วนำไปแทรกใน PDF (jsPDF)
    * Input: -
-   * Output: - (สั่งดาวน์โหลดไฟล์ PDF)
+   * Output: - (สั่งดาวน์โหลดไฟล์ PDF ไปที่เครื่องผู้ใช้งาน)
    */
   const handleDownloadReportPDF = async () => {
     setIsExporting(true);
@@ -252,9 +251,9 @@ export default function AdminDashboardPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานสถิติจังหวัดเป็นไฟล์ Excel (.xlsx)
+   * คำอธิบาย : ฟังก์ชันสร้างและดาวน์โหลดรายงานข้อมูลจังหวัดเป็นไฟล์ Excel (.xlsx) ด้วยไลบรารี ExcelJS
    * Input: -
-   * Output: - (สั่งดาวน์โหลดไฟล์ Excel)
+   * Output: - (สั่งดาวน์โหลดไฟล์ Excel ไปที่เครื่องผู้ใช้งาน)
    */
   const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
@@ -370,7 +369,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="w-full space-y-6 pb-10 relative">
+      
       <h1 className="text-[24px] font-bold text-[#712874]">รายงาน</h1>
+
       {/* ================= Top Filters & Print Button ================= */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-end">
         
@@ -426,7 +427,7 @@ export default function AdminDashboardPage() {
                 <Pie
                   data={pieData} cx="40%" cy="50%" labelLine={false} label={renderCustomizedLabel} outerRadius="95%" dataKey="value" stroke="white" strokeWidth={3} style={{ outline: 'none' }}
                 >
-                  {pieData.map((entry: any, index: number) => (
+                  {pieData.map((_: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} style={{ outline: 'none' }} />
                   ))}
                 </Pie>

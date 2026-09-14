@@ -3,8 +3,6 @@
  * ใช้สำหรับแสดงตารางสรุปจำนวนกิจกรรมและยอดวิวแยกตามจังหวัด รวมถึงมีฟังก์ชันส่งออกข้อมูลเป็น PDF และ Excel
  */
 
-import React from 'react';
-
 // ประกาศ Type สำหรับ Props ที่รับเข้ามา
 interface DashboardReportModalProps {
   isOpen: boolean;

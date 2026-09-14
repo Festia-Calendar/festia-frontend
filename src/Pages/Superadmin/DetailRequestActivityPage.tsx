@@ -3,7 +3,7 @@
  * ทำหน้าที่แสดงรายละเอียดคำขอของกิจกรรมที่รอการอนุมัติ พร้อมกับมีปุ่มให้ผู้ดูแลระบบ (Super Admin) สามารถกดยืนยันอนุมัติหรือปฏิเสธคำขอ พร้อมกรอกเหตุผลได้
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // Import Services

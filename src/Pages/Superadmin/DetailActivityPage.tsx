@@ -3,7 +3,7 @@
  * แสดงข้อมูลต่างๆ ของกิจกรรม เช่น แบนเนอร์ โปสเตอร์ ข้อมูลทั่วไป วันที่ สถานที่จัดงาน พร้อมทั้งเปิด/ปิดรูปภาพ-วิดีโอ (Modal Preview)
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 
 // Import Services
@@ -126,6 +126,26 @@ export default function DetailActivityPage() {
   const activity = data;
   const allMedia = activity.activityFile?.filter((f: any) => f.type === 'COVER' || f.type === 'GALLERY' || f.type === 'VIDEO') || [];
 
+  // ================= Map Logic Helpers =================
+  const lat = activity.location?.latitude ? Number(activity.location.latitude) : null;
+  const lng = activity.location?.longitude ? Number(activity.location.longitude) : null;
+  const hasLatLng = lat !== null && lng !== null && lat !== 0 && lng !== 0 && !isNaN(lat) && !isNaN(lng);
+
+  // ตั้งค่าพิกัดเริ่มต้น (ประเทศไทย) กรณีไม่มีข้อมูลพิกัด
+  const defaultLat = 13.736717;
+  const defaultLng = 100.523186;
+
+  const mapCenterLat = hasLatLng ? lat : defaultLat;
+  const mapCenterLng = hasLatLng ? lng : defaultLng;
+  
+  // ตั้งค่าความกว้างของกรอบแผนที่ (bbox) ถ้ามีหมุดให้ซูมใกล้ (0.01) ถ้าไม่มีให้ซูมออกกว้างๆ (5.0)
+  const zoomOffset = hasLatLng ? 0.01 : 5.0;
+
+  const bbox = `${mapCenterLng - zoomOffset}%2C${mapCenterLat - zoomOffset}%2C${mapCenterLng + zoomOffset}%2C${mapCenterLat + zoomOffset}`;
+  const marker = hasLatLng ? `&marker=${mapCenterLat}%2C${mapCenterLng}` : '';
+  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik${marker}`;
+
+
   return (
     <div className="w-full max-w-[1100px] mx-auto space-y-8 relative pb-10">
       
@@ -201,12 +221,12 @@ export default function DetailActivityPage() {
                   <span>{activity.location?.name || '-'}</span>
                   
                   <span className="font-semibold text-gray-600">ละติจูด ลองจิจูด</span>
-                  <span>{activity.location?.latitude ? `${activity.location.latitude} , ${activity.location.longitude}` : '-'}</span>
+                  <span>{hasLatLng ? `${lat} , ${lng}` : '-'}</span>
                   
                   <span className="font-semibold text-gray-600">แผนที่</span>
-                  {activity.location?.latitude && activity.location?.longitude ? (
-                      <a href={`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-600 hover:underline break-all">
-                          {`https://maps.app.goo.gl/search/${activity.location.latitude},${activity.location.longitude}`}
+                  {hasLatLng ? (
+                      <a href={`https://maps.app.goo.gl/search/${lat},${lng}`} target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-blue-600 hover:underline break-all">
+                          {`https://maps.app.goo.gl/search/${lat},${lng}`}
                       </a>
                   ) : (<span>-</span>)}
                   
@@ -233,12 +253,10 @@ export default function DetailActivityPage() {
             </div>
           </div>
 
-          {/* แผนที่ OpenStreetMap */}
-          {activity.location?.latitude && activity.location?.longitude && (
-              <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200 mt-auto">
-                   <iframe title="OpenStreetMap" width="100%" height="100%" frameBorder="0" scrolling="no" marginHeight={0} marginWidth={0} src={`https://www.openstreetmap.org/export/embed.html?bbox=${activity.location.longitude - 0.01}%2C${activity.location.latitude - 0.01}%2C${activity.location.longitude + 0.01}%2C${activity.location.latitude + 0.01}&layer=mapnik&marker=${activity.location.latitude}%2C${activity.location.longitude}`}></iframe>
-              </div>
-          )}
+          {/* แผนที่ OpenStreetMap (นำเงื่อนไขการซ่อนแผนที่ทิ้ง เพื่อให้แสดงผลเสมอ) */}
+          <div className="w-full h-44 rounded-xl overflow-hidden shadow-sm border border-gray-200 mt-auto">
+             <iframe title="OpenStreetMap" width="100%" height="100%" frameBorder="0" scrolling="no" marginHeight={0} marginWidth={0} src={mapUrl}></iframe>
+          </div>
         </div>
       </div>
 
@@ -262,7 +280,7 @@ export default function DetailActivityPage() {
                   {schedule.title && <p className="text-gray-800 text-[14px] font-semibold mb-1.5">{schedule.title}</p>}
                   {schedule.description && <p className="text-gray-600 text-[14px] mb-4">{schedule.description}</p>}
                   
-                  {/* Schedule Media (เพิ่ม onClick ให้กดขยายรูปกำหนดการได้) */}
+                  {/* Schedule Media */}
                   {schedule.files && schedule.files.length > 0 && (
                     <div className="flex flex-wrap gap-3 mt-3">
                       {schedule.files.map((file: any, fileIdx: number) => (

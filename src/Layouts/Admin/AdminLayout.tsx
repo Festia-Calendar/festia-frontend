@@ -4,7 +4,7 @@
  * ใช้แสดงครอบทุกหน้าในส่วนของ Admin โดยเนื้อหาแต่ละหน้าจะถูกแสดงตรงส่วน <Outlet />
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import logo from '../../assets/logoadmin.png';
 

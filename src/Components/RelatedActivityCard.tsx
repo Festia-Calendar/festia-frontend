@@ -4,7 +4,6 @@
  * เพื่อใช้แนะนำกิจกรรมอื่นๆ ที่น่าสนใจในหน้าดูรายละเอียดกิจกรรม
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 
 // ประกาศ Type สำหรับ Props ที่รับเข้ามา

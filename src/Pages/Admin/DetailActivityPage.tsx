@@ -3,7 +3,7 @@
  * ทำหน้าที่แสดงข้อมูลทั้งหมดของกิจกรรมที่ Admin รับผิดชอบ เช่น โปสเตอร์, สถานที่, ข้อมูลการติดต่อ, และกำหนดการย่อย พร้อมกับปุ่มเชื่อมโยงไปยังหน้าแก้ไข
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 
 // Import Services

@@ -3,7 +3,7 @@
  * ทำหน้าที่แสดงข้อมูลย้อนหลังของกิจกรรมที่เสร็จสิ้นหรือถูกจัดการแล้ว พร้อมส่วนแสดงสื่อ รูปภาพ วิดีโอ และกำหนดการ
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // Import Services

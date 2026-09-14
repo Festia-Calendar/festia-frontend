@@ -1,6 +1,7 @@
 /**
  * คำอธิบาย : Component สำหรับหน้า "สร้างกิจกรรมใหม่" ของระบบ (Create Activity Page)
- * ให้ผู้ใช้งานกรอกข้อมูลต่างๆ ได้แก่ ข้อมูลทั่วไป, สถานที่จัดงาน, แผนที่ (Leaflet Map), กำหนดการย่อย, และการอัปโหลดไฟล์สื่อ
+ * ให้ผู้ใช้งานระดับ Super Admin กรอกข้อมูลเพื่อสร้างกิจกรรมใหม่ โดยมีระบบตรวจสอบข้อมูล (Validation) 
+ * ซึ่งจะข้ามการตรวจสอบฟิลด์ส่วนใหญ่หากผู้ใช้ระบุสถานะเป็น "แบบร่าง" (DRAFT)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -57,7 +58,7 @@ function LocationSelector({ position, setPosition, setFormData, setErrors }: any
 /**
  * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้าจอสร้างกิจกรรม
  * Input: -
- * Output: UI ฟอร์มกรอกข้อมูลกิจกรรม
+ * Output: UI ฟอร์มกรอกข้อมูลกิจกรรมพร้อมระบบ Validate ที่ยืดหยุ่นตามสถานะกิจกรรม
  */
 export default function CreateActivityPage() {
   const navigate = useNavigate();
@@ -207,6 +208,13 @@ export default function CreateActivityPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    if (formData.statusActivity === 'DRAFT') {
+      if (!formData.name.trim()) newErrors.name = "กรุณากรอกชื่อกิจกรรม (สำหรับบันทึกแบบร่าง)";
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    }
+
+    // กรณีเป็น "เผยแพร่" หรือ "ไม่เผยแพร่" ให้ Validate ทุกฟิลด์ที่จำเป็นตามปกติ
     if (!formData.name.trim()) newErrors.name = "กรุณากรอกชื่อกิจกรรม";
     if (!formData.activityType) newErrors.activityType = "กรุณาเลือกประเภทกิจกรรม";
     if (!formData.tagline.trim()) newErrors.tagline = "กรุณากรอกคำโปรย";
@@ -295,13 +303,12 @@ export default function CreateActivityPage() {
         });
       });
 
-      // ดึงแค่วันที่ (YYYY-MM-DD) สำหรับ startDate และ dueDate ของกิจกรรมหลัก
       const activityStartDate = formData.startDate 
         ? new Date(`${formData.startDate}`).toISOString().split('T')[0] 
-        : "";
+        : undefined;
       const activityDueDate = formData.endDate 
         ? new Date(`${formData.endDate}`).toISOString().split('T')[0]
-        : "";
+        : undefined;
 
       const activityJson = {
         location: {
@@ -399,7 +406,7 @@ export default function CreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <Label title="ประเภทกิจกรรม" required />
+                <Label title="ประเภทกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="activityType" value={formData.activityType} onChange={handleChange} className={getInputClass('activityType')}>
                   <option value="">เลือกประเภทกิจกรรม</option>
                   <option value="PERFORMANCE_MUSIC">การแสดง ดนตรี และความบันเทิง</option>
@@ -428,20 +435,20 @@ export default function CreateActivityPage() {
             </div>
 
             <div>
-              <Label title="คำโปรย" required />
+              <Label title="คำโปรย" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="tagline" value={formData.tagline} onChange={handleChange} placeholder="รายละเอียดสั้นๆ สำหรับแสดงหน้าแรก" className={getInputClass('tagline')} />
               {errors.tagline && <p className="text-red-500 text-[13px] mt-1.5">{errors.tagline}</p>}
             </div>
 
             <div>
-              <Label title="รายละเอียด" required />
+              <Label title="รายละเอียด" required={formData.statusActivity !== 'DRAFT'} />
               <textarea name="description" value={formData.description} onChange={handleChange} rows={5} placeholder="ระบุเนื้อหา กำหนดการ และรายละเอียดของกิจกรรม" className={`${getInputClass('description')} resize-y`}></textarea>
               {errors.description && <p className="text-red-500 text-[13px] mt-1.5">{errors.description}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="เบอร์โทรศัพท์" required />
+                <Label title="เบอร์โทรศัพท์" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="กรอกเบอร์โทรศัพท์ (ตัวเลข 10 หลัก)" className={getInputClass('phone')} />
                 {errors.phone && <p className="text-red-500 text-[13px] mt-1.5">{errors.phone}</p>}
               </div>
@@ -458,14 +465,14 @@ export default function CreateActivityPage() {
             <h2 className="text-[18px] font-bold text-[#712874] border-b border-gray-200 pb-2 mb-4">วันเวลา และสถานที่ตั้ง</h2>
             
             <div>
-              <Label title="ชื่อสถานที่จัดงาน" required />
+              <Label title="ชื่อสถานที่จัดงาน" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="locationName" value={formData.locationName} onChange={handleChange} placeholder="เช่น วัดโพนชัย, ศูนย์การค้าเซ็นทรัล..." className={getInputClass('locationName')} />
               {errors.locationName && <p className="text-red-500 text-[13px] mt-1.5">{errors.locationName}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="ภูมิภาค" required />
+                <Label title="ภูมิภาค" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="region" value={formData.region} onChange={handleRegionChange} className={getInputClass('region')}>
                   <option value="">{isLoadingLocation ? "กำลังโหลดข้อมูล..." : "เลือกภูมิภาค"}</option>
                   {regionOptions.map(r => <option key={r} value={r}>{r}</option>)}
@@ -473,7 +480,7 @@ export default function CreateActivityPage() {
                 {errors.region && <p className="text-red-500 text-[13px] mt-1.5">{errors.region}</p>}
               </div>
               <div>
-                <Label title="จังหวัด" required />
+                <Label title="จังหวัด" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="province" value={formData.province} onChange={handleProvinceChange} disabled={!formData.region || isLoadingLocation} className={getInputClass('province')}>
                   <option value="">เลือกจังหวัด</option>
                   {availableProvinces.map(p => <option key={p.id} value={p.name_th}>{p.name_th}</option>)}
@@ -484,7 +491,7 @@ export default function CreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="อำเภอ / เขต" required />
+                <Label title="อำเภอ / เขต" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="district" value={formData.district} onChange={handleDistrictChange} disabled={!formData.province || isLoadingLocation} className={getInputClass('district')}>
                   <option value="">เลือกอำเภอ / เขต</option>
                   {availableDistricts.map((d: any) => <option key={d.id} value={d.name_th}>{d.name_th}</option>)}
@@ -492,7 +499,7 @@ export default function CreateActivityPage() {
                 {errors.district && <p className="text-red-500 text-[13px] mt-1.5">{errors.district}</p>}
               </div>
               <div>
-                <Label title="ตำบล / แขวง" required />
+                <Label title="ตำบล / แขวง" required={formData.statusActivity !== 'DRAFT'} />
                 <select name="subDistrict" value={formData.subDistrict} onChange={handleChange} disabled={!formData.district || isLoadingLocation} className={getInputClass('subDistrict')}>
                   <option value="">เลือกตำบล / แขวง</option>
                   {availableSubDistricts.map((sd: any) => <option key={sd.id} value={sd.name_th}>{sd.name_th}</option>)}
@@ -502,18 +509,18 @@ export default function CreateActivityPage() {
             </div>
 
             <div>
-              <Label title="รายละเอียดที่อยู่" required />
+              <Label title="รายละเอียดที่อยู่" required={formData.statusActivity !== 'DRAFT'} />
               <input type="text" name="addressDetail" value={formData.addressDetail} onChange={handleChange} placeholder="เลขที่, ถนน, ซอย, อำเภอ" className={getInputClass('addressDetail')} />
               {errors.addressDetail && <p className="text-red-500 text-[13px] mt-1.5">{errors.addressDetail}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label title="ละติจูด" required />
+                <Label title="ละติจูด" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" value={formData.latitude} readOnly placeholder="ละติจูดของสถานที่จัดกิจกรรม" className={`${getInputClass('map')} bg-gray-50`} />
               </div>
               <div>
-                <Label title="ลองจิจูด" required />
+                <Label title="ลองจิจูด" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="text" value={formData.longitude} readOnly placeholder="ลองจิจูดของสถานที่จัดกิจกรรม" className={`${getInputClass('map')} bg-gray-50`} />
               </div>
             </div>
@@ -531,22 +538,22 @@ export default function CreateActivityPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <Label title="วันที่เริ่มกิจกรรม" required />
+                <Label title="วันที่เริ่มกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} className={getInputClass('startDate')} />
                 {errors.startDate && <p className="text-red-500 text-[12px] mt-1">{errors.startDate}</p>}
               </div>
               <div>
-                <Label title="เวลาที่เริ่มกิจกรรม" required />
+                <Label title="เวลาที่เริ่มกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} className={getInputClass('startTime')} />
                 {errors.startTime && <p className="text-red-500 text-[12px] mt-1">{errors.startTime}</p>}
               </div>
               <div>
-                <Label title="วันที่สิ้นสุดกิจกรรม" required />
+                <Label title="วันที่สิ้นสุดกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} className={getInputClass('endDate')} />
                 {errors.endDate && <p className="text-red-500 text-[12px] mt-1">{errors.endDate}</p>}
               </div>
               <div>
-                <Label title="เวลาที่สิ้นสุดกิจกรรม" required />
+                <Label title="เวลาที่สิ้นสุดกิจกรรม" required={formData.statusActivity !== 'DRAFT'} />
                 <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className={getInputClass('endTime')} />
                 {errors.endTime && <p className="text-red-500 text-[12px] mt-1">{errors.endTime}</p>}
               </div>
@@ -564,23 +571,23 @@ export default function CreateActivityPage() {
                     </button>
                 )}
                 <div className="mb-6 w-full md:w-1/3 min-w-[200px]">
-                    <Label title="วันที่" required />
-                    <input type="date" value={day.date} onChange={(e) => handleScheduleChange(dayIndex, 'date', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                    <Label title="วันที่" required={formData.statusActivity !== 'DRAFT'} />
+                    <input type="date" value={day.date} onChange={(e) => handleScheduleChange(dayIndex, 'date', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                 </div>
                 {day.timeslots.map((slot, slotIndex) => (
                     <div key={slotIndex} className="space-y-4 mb-6 pb-6 border-b border-gray-200 border-dashed last:border-0 last:pb-0 last:mb-0">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
                         <div className="md:col-span-3">
-                        <Label title="เวลาที่เริ่ม" required />
-                        <input type="time" value={slot.startTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'startTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                        <Label title="เวลาที่เริ่ม" required={formData.statusActivity !== 'DRAFT'} />
+                        <input type="time" value={slot.startTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'startTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                         </div>
                         <div className="md:col-span-3">
-                        <Label title="เวลาที่สิ้นสุด" required />
-                        <input type="time" value={slot.endTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'endTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required />
+                        <Label title="เวลาที่สิ้นสุด" required={formData.statusActivity !== 'DRAFT'} />
+                        <input type="time" value={slot.endTime} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'endTime', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white" required={formData.statusActivity !== 'DRAFT'} />
                         </div>
                         <div className={slotIndex > 0 ? "md:col-span-5" : "md:col-span-6"}>
-                        <Label title="รายละเอียดกิจกรรมในช่วงเวลานี้" required />
-                        <textarea rows={1} value={slot.description} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'description', e.target.value)} placeholder="ระบุชื่อหรือรายละเอียดกิจกรรมย่อย" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white resize-y" required></textarea>
+                        <Label title="รายละเอียดกิจกรรมในช่วงเวลานี้" required={formData.statusActivity !== 'DRAFT'} />
+                        <textarea rows={1} value={slot.description} onChange={(e) => handleTimeSlotChange(dayIndex, slotIndex, 'description', e.target.value)} placeholder="ระบุชื่อหรือรายละเอียดกิจกรรมย่อย" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm bg-white resize-y" required={formData.statusActivity !== 'DRAFT'}></textarea>
                         </div>
                         {slotIndex > 0 && (
                         <div className="md:col-span-1 flex items-end">
@@ -625,7 +632,7 @@ export default function CreateActivityPage() {
               <div className="relative">
                 <div className="absolute -left-[33px] top-1 w-4 h-4 rounded-full bg-[#F59E0B] border-4 border-white shadow-sm"></div>
                 <div>
-                  <Label title="อัปโหลดภาพโปสเตอร์กิจกรรม (Cover)" required />
+                  <Label title="อัปโหลดภาพโปสเตอร์กิจกรรม (Cover)" required={formData.statusActivity !== 'DRAFT'} />
                   <div className="flex flex-wrap gap-3 mt-2">
                     {coverFile ? (
                       <div className="relative w-[140px] h-[100px] border border-gray-300 rounded-lg flex items-center justify-center bg-gray-100 overflow-hidden">

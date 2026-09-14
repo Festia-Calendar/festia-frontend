@@ -30,18 +30,66 @@ export default function SettingPage() {
   const IMAGE_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:3000";
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงรายการรูปภาพ Banner เมื่อโหลดหน้าเว็บครั้งแรก
+   * คำอธิบาย : Hook สำหรับดึงรายการรูปภาพ Banner และ สถานะของระบบ เมื่อโหลดหน้าเว็บครั้งแรก
    * Input: -
    * Output: -
    */
   useEffect(() => {
     fetchBanners();
+    fetchSystemStatus();
   }, []);
+
+  // ================= System Status Handlers =================
+
+  /**
+   * คำอธิบาย : ฟังก์ชันดึงสถานะการเปิด/ปิดระบบจาก Backend
+   */
+  const fetchSystemStatus = async () => {
+    try {
+      const result = await settingService.getServerStatus();
+      if (!result.error && result.data) {
+        setIsOnline(result.data.serverOnline);
+      }
+    } catch (error) {
+      console.error("Error fetching system status:", error);
+    }
+  };
+
+  /**
+   * คำอธิบาย : เปิด Modal ยืนยันการเปิด/ปิดระบบ
+   */
+  const openToggleConfirm = () => {
+    setModalState('confirmToggleStatus'); 
+  };
+
+  /**
+   * คำอธิบาย : ฟังก์ชันยืนยันการเปิด/ปิดระบบ ส่งไปยัง API
+   */
+  const handleConfirmToggle = async () => {
+    setIsProcessing(true);
+    try {
+      if (isOnline) {
+        const result = await settingService.disableServer();
+        if (!result.error) setIsOnline(false);
+      } else {
+        const result = await settingService.enableServer();
+        if (!result.error) setIsOnline(true);
+      }
+      setModalState('successToggleStatus');
+    } catch (error: any) {
+      console.error("Error toggling server status:", error);
+      alert(error.response?.data?.message || "เกิดข้อผิดพลาดในการปรับเปลี่ยนสถานะระบบ");
+      setModalState('none');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+
+  // ================= Banner Handlers =================
 
   /**
    * คำอธิบาย : ฟังก์ชันดึงรายการรูปภาพ Banner จาก Backend ผ่าน settingService
-   * Input: -
-   * Output: -
    */
   const fetchBanners = async () => {
     try {
@@ -59,8 +107,6 @@ export default function SettingPage() {
 
   /**
    * คำอธิบาย : ฟังก์ชันอัปโหลดรูปภาพ Banner ใหม่เข้าสู่ระบบ
-   * Input: e (ChangeEvent ของ Input File)
-   * Output: -
    */
   const handleUploadBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,12 +139,8 @@ export default function SettingPage() {
     }
   };
 
-  // ================= Delete Handlers =================
-
   /**
    * คำอธิบาย : ฟังก์ชันเปิดหน้าต่างยืนยันการลบรูปภาพ Banner
-   * Input: id (number) - รหัสประจำตัวของรูปภาพที่ต้องการลบ
-   * Output: -
    */
   const openDeleteConfirm = (id: number) => {
     setBannerToDelete(id);
@@ -106,9 +148,7 @@ export default function SettingPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันยืนยันการลบรูปภาพ Banner ผ่าน settingService
-   * Input: -
-   * Output: -
+   * คำอธิบาย : ฟังก์ชันยืนยันการลบรูปภาพ Banner
    */
   const handleDeleteBanner = async () => {
     if (bannerToDelete === null) return;
@@ -135,9 +175,7 @@ export default function SettingPage() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันสร้างและปรับปรุง URL ของรูปภาพให้พร้อมสำหรับแสดงผล
-   * Input: imagePath (string) - เส้นทางของรูปภาพจาก Backend
-   * Output: string (URL เต็มพร้อมพารามิเตอร์ป้องกันการแคช)
+   * คำอธิบาย : ฟังก์ชันสร้างและปรับปรุง URL ของรูปภาพ
    */
   const getImageUrl = (imagePath: string) => {
     if (!imagePath) return '';
@@ -161,7 +199,7 @@ export default function SettingPage() {
           <div className="flex items-center gap-4">
             <span className="text-[14px] text-gray-600 font-medium">เปิดให้บริการ (Online)</span>
             <button 
-              onClick={() => setIsOnline(!isOnline)}
+              onClick={openToggleConfirm}
               className={`w-14 h-7 rounded-full p-1 transition-colors relative flex items-center ${isOnline ? 'bg-[#712874]' : 'bg-gray-300'}`}
             >
               <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform ${isOnline ? 'translate-x-7' : 'translate-x-0'}`} />
@@ -229,6 +267,8 @@ export default function SettingPage() {
         setModalState={setModalState} 
         isProcessing={isProcessing}
         handleDeleteBanner={handleDeleteBanner} 
+        handleToggleStatus={handleConfirmToggle}
+        isOnline={isOnline}
       />
 
     </div>

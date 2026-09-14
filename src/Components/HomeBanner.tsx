@@ -2,7 +2,7 @@
  * คำอธิบาย : Component สำหรับแสดงรูปภาพแบนเนอร์แบบเลื่อนสไลด์ (Carousel) และแถบค้นหากิจกรรมสำหรับหน้าแรก (Home)
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 
 interface HomeBannerProps {

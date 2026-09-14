@@ -4,7 +4,7 @@
  * ตาราง 10 อันดับกิจกรรมยอดนิยม และมีฟังก์ชันสำหรับ Export รายงานสถิติเป็น PDF หรือ Excel
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LabelList, Legend
 } from 'recharts';
@@ -50,12 +50,11 @@ const PIE_COLORS = [
 /**
  * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับหน้า Dashboard ของ Super Admin
  * Input: -
- * Output: UI ของหน้า Dashboard ที่รวมตัวกรองข้อมูล กราฟ และตารางสรุปผล
+ * Output: UI ของหน้า Dashboard ที่รวมตัวกรองข้อมูล กราฟสถิติ ตารางยอดนิยม และปุ่มส่งออกรายงาน
  */
 export default function DashboardSuperAdmin() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   
   // States สำหรับ Modal Export
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
@@ -102,7 +101,7 @@ export default function DashboardSuperAdmin() {
   }, []);
 
   /**
-   * คำอธิบาย : Hook จัดการการกรองจังหวัดในหน้าหลัก เมื่อเลือกภูมิภาค
+   * คำอธิบาย : Hook จัดการการกรองจังหวัดในหน้าหลัก เมื่อเลือกภูมิภาค (Zone)
    * Input: -
    * Output: -
    */
@@ -117,7 +116,7 @@ export default function DashboardSuperAdmin() {
   }, [selectedZone, thaiData]);
 
   /**
-   * คำอธิบาย : Hook จัดการการกรองจังหวัดใน Modal Export เมื่อเลือกภูมิภาค
+   * คำอธิบาย : Hook จัดการการกรองจังหวัดใน Modal Export เมื่อเลือกภูมิภาค (Zone)
    * Input: -
    * Output: -
    */
@@ -145,7 +144,7 @@ export default function DashboardSuperAdmin() {
   };
 
   /**
-   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดจาก Backend เมื่อตัวกรองมีการเปลี่ยนแปลง
+   * คำอธิบาย : Hook ดึงข้อมูลแดชบอร์ดจาก Backend เมื่อตัวกรอง (ภูมิภาค, จังหวัด, วันที่) มีการเปลี่ยนแปลง
    * Input: -
    * Output: -
    */
@@ -161,7 +160,7 @@ export default function DashboardSuperAdmin() {
         });
         setDashboardData(data);
       } catch (err: any) {
-        setError(err.response?.data?.message || 'ดึงข้อมูลแดชบอร์ดไม่สำเร็จ');
+        console.error(err.response?.data?.message || 'ดึงข้อมูลแดชบอร์ดไม่สำเร็จ');
       } finally {
         setLoading(false);
       }
@@ -214,7 +213,7 @@ export default function DashboardSuperAdmin() {
   };
 
   /**
-   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานเป็นไฟล์ PDF โดยการเรนเดอร์ HTML เป็นรูปภาพ (html-to-image) แล้วจับใส่หน้า PDF (jsPDF)
+   * คำอธิบาย : ฟังก์ชันดาวน์โหลดรายงานเป็นไฟล์ PDF โดยเรนเดอร์ HTML เป็นรูปภาพ (html-to-image) แล้วนำไปแทรกใน PDF (jsPDF)
    * Input: -
    * Output: - (สั่งดาวน์โหลดไฟล์ PDF ไปที่เครื่องผู้ใช้งาน)
    */
@@ -344,11 +343,11 @@ export default function DashboardSuperAdmin() {
   };
 
   const RADIAN = Math.PI / 180;
-  
+
   /**
-   * คำอธิบาย : ฟังก์ชันปรับแต่ง Label ของกราฟวงกลม (Pie Chart) ให้แสดงค่าเปอร์เซ็นต์และจำนวนรายการภายในกราฟ
-   * Input: คุณสมบัติ (Properties) จาก Recharts ของแต่ละชิ้นข้อมูล (cx, cy, midAngle, innerRadius, outerRadius, percent, value)
-   * Output: JSX Element ที่เป็นข้อความ (SVG Text) ที่ถูกจัดวางตำแหน่งแล้ว
+   * คำอธิบาย : ฟังก์ชันปรับแต่ง Label ของกราฟวงกลม (Pie Chart) ให้แสดงเปอร์เซ็นต์และจำนวน
+   * Input: Property การเรนเดอร์กราฟจาก Recharts (cx, cy, midAngle, innerRadius, outerRadius, percent, value)
+   * Output: SVG Text Element
    */
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }: any) => {
     if (percent === 0) return null;
@@ -428,7 +427,7 @@ export default function DashboardSuperAdmin() {
                 <Pie
                   data={pieData} cx="40%" cy="50%" labelLine={false} label={renderCustomizedLabel} outerRadius="95%" dataKey="value" stroke="white" strokeWidth={3} style={{ outline: 'none' }}
                 >
-                  {pieData.map((entry: any, index: number) => (
+                  {pieData.map((_: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} style={{ outline: 'none' }} />
                   ))}
                 </Pie>

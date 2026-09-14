@@ -3,8 +3,6 @@
  * ใช้สำหรับเลือกเงื่อนไขการค้นหา เช่น ชื่อกิจกรรม, ประเภท, ภูมิภาค, จังหวัด, อำเภอ, ตำบล และช่วงวันที่
  */
 
-import React from 'react';
-
 // ประกาศ Type สำหรับ Props ที่รับเข้ามา
 interface ActivityFilterCardProps {
   searchKeyword: string;

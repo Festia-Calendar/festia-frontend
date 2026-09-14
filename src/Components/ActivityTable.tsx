@@ -4,7 +4,6 @@
  * สามารถปรับเปลี่ยนการแสดงผลปุ่ม Action (ลบ, แก้ไข, อนุมัติ) ได้ตามโหมดและสิทธิ์ (Admin/Superadmin)
  */
 
-import React from 'react';
 import { Link } from 'react-router-dom';
 
 // ประกาศ Type สำหรับ Props ที่รับเข้ามา

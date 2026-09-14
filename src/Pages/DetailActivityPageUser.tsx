@@ -1,14 +1,15 @@
 /**
  * คำอธิบาย : Component สำหรับหน้าแสดงรายละเอียดของกิจกรรม (Detail Activity Page) สำหรับผู้ใช้งานทั่วไป
- * ทำหน้าที่แสดงข้อมูลทั้งหมดของกิจกรรมที่ผู้ใช้เลือกดู เช่น รูปแบบแบนเนอร์/โปสเตอร์, สถานที่จัดงาน, วันเวลา, ข้อมูลการติดต่อ, แผนที่ (OpenStreetMap), และกำหนดการย่อย พร้อมกับมีส่วนแสดงกิจกรรมที่เกี่ยวข้องด้วย
+ * ทำหน้าที่แสดงข้อมูลทั้งหมดของกิจกรรมที่ผู้ใช้เลือกดู พร้อมระบบตรวจสอบสถานะเปิด/ปิดระบบ (Online/Offline)
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Phone, X } from 'lucide-react';
 
 // Import Services & Components
 import { homeService } from '../Services/home.service';
+import { settingService } from '../Services/setting.service';
 import RelatedActivityCard from '../Components/RelatedActivityCard';
 
 import logo from '../assets/logo.png'; 
@@ -18,7 +19,7 @@ import lineIcon from '../assets/line.png';
 /**
  * คำอธิบาย : ฟังก์ชัน Component หลักสำหรับเรนเดอร์หน้าจอรายละเอียดกิจกรรม
  * Input: -
- * Output: UI แสดงข้อมูลรายละเอียดของกิจกรรม, กำหนดการ, โซเชียลมีเดีย, แผนที่ และกิจกรรมอื่นๆ ที่น่าสนใจ
+ * Output: UI แสดงข้อมูลรายละเอียดของกิจกรรม หรือ หน้าจอปิดปรับปรุงระบบ
  */
 export default function DetailActivityPageUser() {
   const { id } = useParams();
@@ -28,6 +29,9 @@ export default function DetailActivityPageUser() {
   const [relatedActivities, setRelatedActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  const [isSystemOnline, setIsSystemOnline] = useState<boolean>(true);
+  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(true);
+
   const [activeImage, setActiveImage] = useState<string>('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -35,8 +39,6 @@ export default function DetailActivityPageUser() {
   
   /**
    * คำอธิบาย : ฟังก์ชันจัดการและแปลง URL ของรูปภาพ/วิดีโอ เพื่อให้สามารถแสดงผลได้ถูกต้อง
-   * Input: path (string) - ที่อยู่ของไฟล์ (File Path)
-   * Output: string (URL เต็มที่สามารถนำไปใช้กับแท็ก img หรือ video ได้)
    */
   const getImageUrl = (path: string) => {
     if (!path) return 'https://placehold.co/600x800/EEE/31343C?text=No+Image';
@@ -48,8 +50,6 @@ export default function DetailActivityPageUser() {
 
   /**
    * คำอธิบาย : ฟังก์ชันตรวจสอบนามสกุลไฟล์ ว่าเป็นไฟล์วิดีโอหรือไม่
-   * Input: path (string)
-   * Output: boolean (True หากเป็นวิดีโอ, False หากไม่ใช่)
    */
   const isVideoFile = (path: string) => {
     if (!path) return false;
@@ -57,9 +57,26 @@ export default function DetailActivityPageUser() {
   };
 
   /**
-   * คำอธิบาย : Hook สำหรับดึงข้อมูลรายละเอียดกิจกรรมจากเซิร์ฟเวอร์ เมื่อโหลดหน้าเว็บหรือเกิดการเปลี่ยน URL id
-   * Input: -
-   * Output: -
+   * คำอธิบาย : Hook สำหรับตรวจสอบสถานะเปิด/ปิดระบบจาก Backend ทันทีที่เข้าหน้าเว็บ
+   */
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const result = await settingService.getServerStatus();
+        if (result && result.data) {
+          setIsSystemOnline(result.data.serverOnline);
+        }
+      } catch (error) {
+        console.error("Failed to check server status", error);
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+    checkSystemStatus();
+  }, []);
+
+  /**
+   * คำอธิบาย : Hook สำหรับดึงข้อมูลรายละเอียดกิจกรรมจากเซิร์ฟเวอร์
    */
   useEffect(() => {
     const fetchDetail = async () => {
@@ -83,14 +100,9 @@ export default function DetailActivityPageUser() {
         setLoading(false);
       }
     };
-    if (id) fetchDetail();
-  }, [id]);
+    if (id && isSystemOnline) fetchDetail();
+  }, [id, isSystemOnline]);
 
-  /**
-   * คำอธิบาย : ฟังก์ชันแปลงรูปแบบช่วงวันที่เพื่อการแสดงผล (เช่น 1 ม.ค. 2026 - 5 ม.ค. 2026)
-   * Input: startStr (string), endStr (string)
-   * Output: string
-   */
   const formatDateRange = (startStr: string, endStr: string) => {
     if (!startStr) return '-';
     const s = new Date(startStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -98,11 +110,6 @@ export default function DetailActivityPageUser() {
     return s === e ? s : `${s} - ${e}`;
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดรูปแบบการแสดงผลวันเวลาของกำหนดการย่อย (Schedule)
-   * Input: start (string), end (string)
-   * Output: string (เช่น "1 ม.ค. 09:00 - 12:00 น.")
-   */
   const formatScheduleDateTime = (start: string, end: string) => {
     if (!start || !end) return '-';
     const d = new Date(start);
@@ -112,12 +119,30 @@ export default function DetailActivityPageUser() {
     return `${datePart} ${sTime} - ${eTime} น.`;
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันสำหรับจัดการราคาค่าเข้าชม หากไม่มีค่าหรือเป็น 0 จะแสดงผลเป็นคำว่า "ฟรี"
-   * Input: price (any)
-   * Output: string
-   */
   const formatPrice = (price: any) => (!price || Number(price) === 0) ? 'ฟรี' : `${Number(price).toLocaleString()} บาท`;
+
+  if (isCheckingStatus) {
+    return <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center text-[#712874]">กำลังตรวจสอบสถานะระบบ...</div>;
+  }
+  if (!isSystemOnline) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 text-center max-w-lg w-full">
+          <div className="w-20 h-20 bg-purple-50 text-[#712874] rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">ขออภัย ระบบกำลังปิดปรับปรุง</h1>
+          <p className="text-gray-500 mb-8">เรากำลังพัฒนาระบบให้ดียิ่งขึ้น กรุณากลับมาใช้งานใหม่อีกครั้งในภายหลัง</p>
+          <Link to="/admin/login" className="text-sm text-[#712874] hover:underline font-medium">
+            สำหรับผู้ดูแลระบบ (Admin Login)
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center"><p className="text-gray-500">กำลังโหลดข้อมูล...</p></div>;
   if (!data) return <div className="min-h-screen bg-[#FFFDF9] flex items-center justify-center flex-col gap-4"><p className="text-gray-500">ไม่พบข้อมูลกิจกรรม</p><button onClick={() => navigate(-1)} className="text-[#712874] underline">กลับไปหน้าก่อนหน้า</button></div>;
@@ -166,9 +191,9 @@ export default function DetailActivityPageUser() {
                   <div key={idx} onClick={() => setActiveImage(media.filePath)} className={`aspect-square bg-black rounded-xl overflow-hidden cursor-pointer transition-all relative ${isSelected ? 'border-2 border-[#712874] ring-2 ring-[#712874]/20' : 'border border-gray-200 hover:opacity-80'}`}>
                     {isVideoFile(media.filePath) ? (
                        <><video src={getImageUrl(media.filePath)} className="w-full h-full object-cover opacity-70 bg-black" preload="metadata" /><div className="absolute inset-0 flex items-center justify-center pointer-events-none"><svg className="w-6 h-6 text-white/90 drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M4 4l12 6-12 6z"></path></svg></div></>
-                     ) : (
+                      ) : (
                        <img src={getImageUrl(media.filePath)} alt={`Thumbnail ${idx}`} className="w-full h-full object-cover bg-gray-100" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/EEE/31343C?text=Error'; }} />
-                     )}
+                      )}
                   </div>
                 );
               })}
@@ -229,7 +254,7 @@ export default function DetailActivityPageUser() {
               data.schedules.map((schedule: any, idx: number) => (
                 <div key={idx} className="flex flex-col md:flex-row md:space-x-8 border-b border-dashed border-gray-200 pb-8 last:border-0 last:pb-0">
                   <div className="w-48 shrink-0 text-[#712874] font-semibold text-[14px] mb-2 md:mb-0 pt-0.5">
-                     <span>{formatScheduleDateTime(schedule.startDateTime, schedule.endDateTime)}</span>
+                       <span>{formatScheduleDateTime(schedule.startDateTime, schedule.endDateTime)}</span>
                   </div>
                   <div className="flex-1">
                     {schedule.title && <p className="text-gray-800 text-[14px] font-bold mb-1.5">{schedule.title}</p>}

@@ -3,8 +3,6 @@
  * ทำหน้าที่แสดง UI ยืนยัน, แจ้งความสำเร็จ, รับข้อความปฏิเสธ, และแสดงสถานะกำลังโหลด (Processing)
  */
 
-import React from 'react';
-
 // รวบรวมทุก State ของ Modal ไว้ใน Type เดียว
 export type ModalStateType = 
   | 'none' 
@@ -14,7 +12,8 @@ export type ModalStateType =
   | 'confirmDeleteBanner' | 'successDeleteBanner' // ลบรูปแบนเนอร์ (Setting)
   | 'confirmCreate' | 'successCreate' // สร้างกิจกรรม
   | 'processing' // หน้าโหลดกำลังอัปโหลด
-  | 'confirmEdit' | 'successEdit'; // แก้ไขกิจกรรม
+  | 'confirmEdit' | 'successEdit' // แก้ไขกิจกรรม
+  | 'confirmToggleStatus' | 'successToggleStatus'; // เปิด-ปิด ระบบ (Setting)
 
 // ประกาศ Type สำหรับ Props ที่รับเข้ามา
 interface ModalProps {
@@ -27,13 +26,15 @@ interface ModalProps {
   handleApprove?: () => void;
   handleReject?: () => void;
   handleDeleteBanner?: () => void;
+  handleToggleStatus?: () => void; // ฟังก์ชันยืนยันการเปิด/ปิดระบบ
   
-  // ⭐ เพิ่ม: ฟังก์ชันสำหรับการเปลี่ยนหน้า (Navigate) เมื่อทำสำเร็จในหน้าสร้าง/แก้ไข
+  // ฟังก์ชันสำหรับการเปลี่ยนหน้า (Navigate) เมื่อทำสำเร็จในหน้าสร้าง/แก้ไข
   handleSuccessClose?: () => void; 
   
   // Form State
   rejectReason?: string;
   setRejectReason?: (reason: string) => void;
+  isOnline?: boolean; // สถานะปัจจุบันเพื่อนำมาแสดงข้อความให้ถูกต้อง
 }
 
 /**
@@ -43,8 +44,8 @@ interface ModalProps {
  */
 export default function ActivityModals({
   modalState, setModalState, isProcessing,
-  handleDelete, handleApprove, handleReject, handleDeleteBanner, handleSuccessClose,
-  rejectReason, setRejectReason
+  handleDelete, handleApprove, handleReject, handleDeleteBanner, handleToggleStatus, handleSuccessClose,
+  rejectReason, setRejectReason, isOnline
 }: ModalProps) {
 
   if (modalState === 'none') return null;
@@ -52,8 +53,6 @@ export default function ActivityModals({
   /**
    * คำอธิบาย : ฟังก์ชันจัดการตอนกดปิด Modal แจ้งเตือนความสำเร็จ (Success Modal)
    * หากมีฟังก์ชัน handleSuccessClose (ใช้สำหรับพากลับหน้าหลัก) ให้เรียกใช้ก่อน
-   * Input: -
-   * Output: -
    */
   const closeSuccessModal = () => {
     if (handleSuccessClose) {
@@ -65,21 +64,11 @@ export default function ActivityModals({
 
   /**
    * คำอธิบาย : ฟังก์ชันกดปิด Modal กลับสู่สถานะว่างเปล่า (none)
-   * Input: -
-   * Output: -
    */
   const closeModal = () => setModalState('none');
 
   /**
    * คำอธิบาย : ฟังก์ชันสร้างโครงสร้าง UI สำหรับ Modal กดยืนยัน (Confirm Modal)
-   * Input: 
-   *  - title (หัวข้อ)
-   *  - desc (คำอธิบาย)
-   *  - onConfirm (ฟังก์ชันเมื่อกดยืนยัน)
-   *  - btnColor (สีพื้นหลังปุ่ม)
-   *  - btnHover (สีปุ่มเมื่อ Hover)
-   *  - btnText (ข้อความบนปุ่ม)
-   * Output: JSX Element สำหรับแสดง Modal
    */
   const renderConfirmModal = (title: string, desc: string, onConfirm: () => void, btnColor: string, btnHover: string, btnText: string) => (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -103,8 +92,6 @@ export default function ActivityModals({
 
   /**
    * คำอธิบาย : ฟังก์ชันสร้างโครงสร้าง UI สำหรับ Modal แจ้งเตือนเมื่อทำงานเสร็จสมบูรณ์ (Success Modal)
-   * Input: title (หัวข้อ), desc (คำอธิบาย)
-   * Output: JSX Element สำหรับแสดง Modal แบบสำเร็จ (ปุ่มเดี่ยว)
    */
   const renderSuccessModal = (title: string, desc: string) => (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -134,9 +121,20 @@ export default function ActivityModals({
       {modalState === 'confirmReject' && renderConfirmModal('ยืนยันการปฏิเสธกิจกรรม', 'คุณต้องการยืนยันการปฏิเสธกิจกรรมหรือไม่', handleReject!, 'bg-[#5B1F54]', 'bg-[#461740]', 'ยืนยัน')}
       {modalState === 'successReject' && renderSuccessModal('ปฏิเสธกิจกรรมสำเร็จ', 'กิจกรรมถูกปฏิเสธเรียบร้อยแล้ว')}
 
-      {/* ----------------- Setting Banner Modals ----------------- */}
+      {/* ----------------- Setting Modals (Banner & System Status) ----------------- */}
       {modalState === 'confirmDeleteBanner' && renderConfirmModal('ยืนยันการลบรูปภาพ', 'คุณต้องการยืนยันการลบรูปภาพนี้หรือไม่', handleDeleteBanner!, 'bg-[#5B1F54]', 'bg-[#461740]', 'ยืนยัน')}
       {modalState === 'successDeleteBanner' && renderSuccessModal('ลบรูปภาพสำเร็จ', 'รูปภาพถูกลบออกจากระบบแล้ว')}
+
+      {modalState === 'confirmToggleStatus' && renderConfirmModal(
+        `ยืนยันการ${isOnline ? 'ปิด' : 'เปิด'}ระบบ`, 
+        `คุณต้องการยืนยันการ${isOnline ? 'ปิด' : 'เปิด'}ระบบใช่หรือไม่?`, 
+        handleToggleStatus!, 
+        'bg-[#5B1F54]', 'bg-[#461740]', 'ยืนยัน'
+      )}
+      {modalState === 'successToggleStatus' && renderSuccessModal(
+        `${isOnline ? 'เปิด' : 'ปิด'}ระบบสำเร็จ`, 
+        `ระบบถูกเปลี่ยนสถานะเรียบร้อยแล้ว`
+      )}
 
       {/* ----------------- Create & Edit Activity Modals ----------------- */}
       {modalState === 'confirmCreate' && renderConfirmModal('ยืนยันการสร้างกิจกรรม', 'คุณต้องการยืนยันการสร้างกิจกรรมหรือไม่', handleApprove!, 'bg-[#5B1F54]', 'bg-[#461740]', 'ยืนยัน')}

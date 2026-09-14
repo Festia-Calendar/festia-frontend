@@ -1,15 +1,17 @@
 /**
  * คำอธิบาย : Service สำหรับจัดการการตั้งค่าระบบ (Settings)
- * ทำหน้าที่เชื่อมต่อกับ Backend (API) เพื่อจัดการรูปภาพแบนเนอร์ (Banner) เช่น การดึงรายการ, อัปโหลดเพิ่ม และลบรูปภาพ สำหรับ Super Admin
+ * ทำหน้าที่เชื่อมต่อกับ Backend (API) เพื่อจัดการรูปภาพแบนเนอร์ (Banner) และจัดการสถานะเซิร์ฟเวอร์ สำหรับ Super Admin
  */
 
 import api from '../Libs/axios';
 
 /**
- * คำอธิบาย : ออบเจกต์ที่รวมฟังก์ชันการเรียก API สำหรับจัดการรูปภาพ Banner
+ * คำอธิบาย : ออบเจกต์ที่รวมฟังก์ชันการเรียก API สำหรับจัดการการตั้งค่าระบบ
  */
 export const settingService = {
   
+  // ================= Banners Management =================
+
   /**
    * คำอธิบาย : ฟังก์ชันดึงรายการรูปภาพ Banner ทั้งหมดที่มีอยู่ในระบบ
    * Input: -
@@ -42,6 +44,38 @@ export const settingService = {
    */
   deleteBanner: async (id: number) => {
     const response = await api.delete(`/superadmin/banner/${id}`);
+    return response.data;
+  },
+
+  // ================= System Configuration =================
+
+  /**
+   * คำอธิบาย : ฟังก์ชันดึงสถานะการทำงานปัจจุบันของระบบ (เปิด/ปิด)
+   * Input: -
+   * Output: ข้อมูลสถานะของเซิร์ฟเวอร์ (serverOnline)
+   */
+  getServerStatus: async () => {
+    const response = await api.get('/server-status');
+    return response.data;
+  },
+
+  /**
+   * คำอธิบาย : ฟังก์ชันสั่งเปิดระบบให้ใช้งานได้ (Online)
+   * Input: -
+   * Output: ผลการทำงานตอบกลับว่าเปิดเซิร์ฟเวอร์สำเร็จ
+   */
+  enableServer: async () => {
+    const response = await api.post('/superadmin/server/enable');
+    return response.data;
+  },
+
+  /**
+   * คำอธิบาย : ฟังก์ชันสั่งปิดระบบ (Offline)
+   * Input: -
+   * Output: ผลการทำงานตอบกลับว่าปิดเซิร์ฟเวอร์สำเร็จ
+   */
+  disableServer: async () => {
+    const response = await api.post('/superadmin/server/disable');
     return response.data;
   }
 };

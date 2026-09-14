@@ -1,15 +1,17 @@
 /**
  * คำอธิบาย : Component สำหรับหน้าหลัก (Home Page) ของเว็บไซต์ 
  * ทำหน้าที่แสดงแบนเนอร์, ปฏิทินกิจกรรม, ตัวกรองค้นหา และแสดงรายการกิจกรรมทั้งหมดสำหรับผู้ใช้งานทั่วไป
+ * (รองรับปฏิทินแบบเลือกช่วงเวลา Date Range และระบบปิดปรับปรุงระบบ)
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, Phone, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // Import Services & Helpers
 import { homeService } from '../Services/home.service';
 import { locationService } from '../Services/location.service';
+import { settingService } from '../Services/setting.service';
 
 // Import Components
 import HomeBanner from '../Components/HomeBanner';
@@ -36,12 +38,15 @@ const REGION_MAP: Record<number, string> = { 1: "ภาคเหนือ", 2: "
 /**
  * คำอธิบาย : ฟังก์ชัน Component สำหรับเรนเดอร์หน้าแรก
  * Input: -
- * Output: UI ของหน้าแรก (แบนเนอร์, ปฏิทิน, หมวดหมู่, และรายการกิจกรรม)
+ * Output: UI ของหน้าแรก (แบนเนอร์, ปฏิทิน, หมวดหมู่, และรายการกิจกรรม) หรือ หน้าจอปิดปรับปรุงระบบ
  */
 export default function HomePage() {
   const [banners, setBanners] = useState<string[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [isSystemOnline, setIsSystemOnline] = useState<boolean>(true);
+  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(true);
 
   // Location States
   const [thaiData, setThaiData] = useState<any[]>([]);
@@ -56,26 +61,41 @@ export default function HomePage() {
 
   // Calendar States
   const [currentDate, setCurrentDate] = useState(new Date()); 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null); 
+  const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]); 
   const [showMonthPicker, setShowMonthPicker] = useState(false); 
   const [activitiesForCalendar, setActivitiesForCalendar] = useState<any[]>([]);
 
   const IMAGE_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || "http://localhost:3000";
 
   /**
-   * คำอธิบาย : Hook สำหรับโหลดข้อมูลตั้งต้น ได้แก่ ภูมิภาค/จังหวัด และ แบนเนอร์ (ทำงานครั้งเดียวตอนโหลดหน้า)
-   * Input: -
-   * Output: -
+   * คำอธิบาย : Hook สำหรับตรวจสอบสถานะเปิด/ปิดระบบจาก Backend ทันทีที่เข้าเว็บ
+   */
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const result = await settingService.getServerStatus();
+        if (result && result.data) {
+          setIsSystemOnline(result.data.serverOnline);
+        }
+      } catch (error) {
+        console.error("Failed to check server status", error);
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+    checkSystemStatus();
+  }, []);
+
+  /**
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลตั้งต้น ได้แก่ ภูมิภาค/จังหวัด และ แบนเนอร์
    */
   useEffect(() => {
     const fetchInitData = async () => {
       try {
-        // Location
         const data = await locationService.getThaiData();
         setThaiData(data);
         setRegionOptions(Array.from(new Set(data.map((p: any) => REGION_MAP[p.geography_id]))).filter(Boolean) as string[]);
         
-        // Banners
         const bannerImages = await homeService.getBanners();
         setBanners(bannerImages.length > 0 ? bannerImages : ['/placeholder-banner.jpg']);
       } catch (error) {
@@ -87,8 +107,6 @@ export default function HomePage() {
 
   /**
    * คำอธิบาย : Hook สำหรับอัปเดตตัวเลือกจังหวัดเมื่อผู้ใช้งานเปลี่ยนภูมิภาค (Zone)
-   * Input: -
-   * Output: -
    */
   useEffect(() => {
     if (activeSearch.zone) {
@@ -99,9 +117,7 @@ export default function HomePage() {
   }, [activeSearch.zone, thaiData]);
 
   /**
-   * คำอธิบาย : Hook สำหรับโหลดข้อมูลกิจกรรมเพื่อแสดงเป็นจุดไข่ปลาบนปฏิทิน (ทำงานทุกครั้งที่เปลี่ยนเดือนบนปฏิทิน)
-   * Input: -
-   * Output: -
+   * คำอธิบาย : Hook สำหรับโหลดข้อมูลกิจกรรมเพื่อแสดงเป็นจุดไข่ปลาบนปฏิทิน
    */
   useEffect(() => {
     const fetchCalendarDots = async () => {
@@ -114,9 +130,7 @@ export default function HomePage() {
   }, [currentDate]);
 
   /**
-   * คำอธิบาย : Hook สำหรับโหลดรายการกิจกรรมที่จะแสดงผลในหน้าเว็บ (ทำงานเมื่อเปลี่ยนการค้นหา หมวดหมู่ วันที่ หรือหน้า)
-   * Input: -
-   * Output: -
+   * คำอธิบาย : Hook สำหรับโหลดรายการกิจกรรมที่จะแสดงผลในหน้าเว็บ
    */
   useEffect(() => {
     const fetchActivities = async () => {
@@ -125,14 +139,16 @@ export default function HomePage() {
          const formatYMD = (d: Date) => new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
          
          let searchStartDateStr, searchEndDateStr;
-         if (selectedDate) {
-            const prevDay = new Date(selectedDate); prevDay.setDate(prevDay.getDate() - 1);
-            const nextDay = new Date(selectedDate); nextDay.setDate(nextDay.getDate() + 1);
-            searchStartDateStr = formatYMD(prevDay);
-            searchEndDateStr = formatYMD(nextDay);
+         
+         if (dateRange[0] && dateRange[1]) {
+           searchStartDateStr = formatYMD(dateRange[0]);
+           searchEndDateStr = formatYMD(dateRange[1]);
+         } else if (dateRange[0] && !dateRange[1]) {
+           searchStartDateStr = formatYMD(dateRange[0]);
+           searchEndDateStr = formatYMD(dateRange[0]);
          } else {
-            searchStartDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
-            searchEndDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59));
+           searchStartDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+           searchEndDateStr = formatYMD(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59));
          }
 
          const responseData = await homeService.searchActivities({
@@ -156,13 +172,8 @@ export default function HomePage() {
        }
     };
     fetchActivities();
-  }, [page, selectedCategory, activeSearch, selectedDate, currentDate]);
+  }, [page, selectedCategory, activeSearch, dateRange, currentDate]);
 
-  /**
-   * คำอธิบาย : ฟังก์ชันแปลงเส้นทาง (Path) ของรูปภาพให้เป็น URL ที่ถูกต้องสำหรับแสดงผล
-   * Input: imagePath (string)
-   * Output: string (URL ที่สมบูรณ์)
-   */
   const getImageUrlPath = (imagePath: string) => {
     if (!imagePath || imagePath === '/placeholder-banner.jpg') return 'https://placehold.co/1920x600?text=Banner';
     let cleanPath = imagePath.replace(/\\/g, '/');
@@ -173,9 +184,26 @@ export default function HomePage() {
   // ================= Calendar Logic Helpers =================
 
   /**
+   * คำอธิบาย : ฟังก์ชันจัดการการคลิกวันที่บนปฏิทิน เพื่อสร้างช่วงวัน (Range)
+   */
+  const handleDateClick = (date: Date) => {
+    const [start, end] = dateRange;
+    if (!start || (start && end)) {
+      setDateRange([date, null]);
+    } else {
+      if (date.getTime() === start.getTime()) {
+         setDateRange([null, null]);
+      } else if (date < start) {
+         setDateRange([date, start]);
+      } else {
+         setDateRange([start, date]);
+      }
+    }
+    setPage(1);
+  };
+
+  /**
    * คำอธิบาย : ฟังก์ชันเช็คว่าวันที่ระบุ อยู่ในช่วงวันจัดกิจกรรมนั้นๆ หรือไม่
-   * Input: date (Date), activity (any)
-   * Output: boolean
    */
   const isDateInActivity = (date: Date, activity: any) => {
     if (!activity.startDate) return false;
@@ -184,26 +212,39 @@ export default function HomePage() {
     const end = activity.dueDate ? new Date(activity.dueDate).setHours(0,0,0,0) : start;
     return target >= start && target <= end;
   };
-  
+
   /**
-   * คำอธิบาย : ฟังก์ชันตรวจสอบว่าวันดังกล่าวมีกิจกรรมจัดขึ้นหรือไม่ (สำหรับจุดไข่ปลา)
-   * Input: date (Date)
-   * Output: boolean
+   * คำอธิบาย : กรองกิจกรรมที่จะมาแสดงเฉพาะที่ตรงกับช่วง Range ในเครื่องมือปฏิทิน
    */
+  const isActivityInRange = (act: any) => {
+    const [start, end] = dateRange;
+    if (!start) return true;
+    
+    const s = new Date(start).setHours(0,0,0,0);
+    const e = end ? new Date(end).setHours(23,59,59,999) : new Date(start).setHours(23,59,59,999);
+    
+    const actStart = new Date(act.startDate).setHours(0,0,0,0);
+    const actEnd = act.dueDate ? new Date(act.dueDate).setHours(23,59,59,999) : actStart;
+
+    return actStart <= e && actEnd >= s;
+  };
+  
   const hasActivityOnDate = (date: Date) => activitiesForCalendar.some(act => isDateInActivity(date, act));
 
-  /**
-   * คำอธิบาย : ฟังก์ชันตรวจสอบว่า Date 2 อัน เป็นวันเดียวกันหรือไม่
-   * Input: d1 (Date | null), d2 (Date)
-   * Output: boolean
-   */
-  const isSameDay = (d1: Date | null, d2: Date) => d1?.getDate() === d2.getDate() && d1?.getMonth() === d2.getMonth() && d1?.getFullYear() === d2.getFullYear();
+  const isSameDay = (d1: Date | null, d2: Date | null) => {
+    if (!d1 || !d2) return false;
+    return d1.getDate() === d2.getDate() && d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear();
+  };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันคำนวณจำนวนวันในปฏิทินเพื่อนำมาแสดงในตาราง (รวมวันของเดือนก่อน/หลัง ที่อยู่ในกริด)
-   * Input: -
-   * Output: Array ของข้อมูลวันที่
-   */
+  const isWithinRange = (date: Date) => {
+    const [start, end] = dateRange;
+    if (!start || !end) return false;
+    const target = new Date(date).setHours(0,0,0,0);
+    const s = new Date(start).setHours(0,0,0,0);
+    const e = new Date(end).setHours(0,0,0,0);
+    return target > s && target < e;
+  };
+
   const getDaysInMonth = () => {
     const y = currentDate.getFullYear(), m = currentDate.getMonth();
     const firstDay = new Date(y, m, 1).getDay();
@@ -218,11 +259,6 @@ export default function HomePage() {
     return days;
   };
 
-  /**
-   * คำอธิบาย : ฟังก์ชันจัดรูปแบบช่วงวันที่จัดกิจกรรมสำหรับแสดงผลในหน้าการ์ดกิจกรรม
-   * Input: startStr (string), endStr (string)
-   * Output: string (เช่น "1 ม.ค. 67 - 5 ม.ค. 67")
-   */
   const formatDateRange = (startStr: string, endStr: string) => {
     if (!startStr) return '-';
     const s = new Date(startStr).toLocaleDateString('th-TH');
@@ -230,11 +266,6 @@ export default function HomePage() {
     return s === e ? s : `${s} - ${e}`;
   };
 
-  /**
-   * คำอธิบาย : Component สำหรับสร้างปุ่มเลือกหมวดหมู่ (Category Button)
-   * Input: typeKey (string - รหัสหมวดหมู่), label (string - ข้อความบนปุ่ม)
-   * Output: JSX Element
-   */
   const CategoryButton = ({ typeKey, label }: { typeKey: string, label: string }) => (
     <button 
       onClick={() => { setSelectedCategory(typeKey); setPage(1); }}
@@ -244,7 +275,30 @@ export default function HomePage() {
     </button>
   );
 
-  const displayActivities = selectedDate ? activities.filter(act => isDateInActivity(selectedDate, act)) : activities;
+  const displayActivities = (dateRange[0] || dateRange[1]) ? activities.filter(isActivityInRange) : activities;
+
+  if (isCheckingStatus) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#FFFDF9] text-[#712874]">กำลังตรวจสอบสถานะระบบ...</div>;
+  }
+  if (!isSystemOnline) {
+    return (
+      <div className="min-h-screen bg-[#FFFDF9] flex flex-col items-center justify-center p-4 font-sans">
+        <div className="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 text-center max-w-lg w-full">
+          <div className="w-20 h-20 bg-purple-50 text-[#712874] rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-3">ขออภัย ระบบกำลังปิดปรับปรุง</h1>
+          <p className="text-gray-500 mb-8">เรากำลังพัฒนาระบบให้ดียิ่งขึ้น กรุณากลับมาใช้งานใหม่อีกครั้งในภายหลัง</p>
+          <Link to="/admin/login" className="text-sm text-[#712874] hover:underline font-medium">
+            สำหรับผู้ดูแลระบบ (Admin Login)
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FFFDF9] font-sans">
@@ -254,8 +308,11 @@ export default function HomePage() {
           to="/" 
           onClick={() => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            setSelectedCategory('ALL'); setSelectedDate(null); setCurrentDate(new Date());
-            setActiveSearch({ keyword: '', zone: '', province: ''}); setPage(1);
+            setSelectedCategory('ALL'); 
+            setDateRange([null, null]);
+            setCurrentDate(new Date());
+            setActiveSearch({ keyword: '', zone: '', province: ''}); 
+            setPage(1);
           }}
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
@@ -283,16 +340,16 @@ export default function HomePage() {
         <div className="w-full md:w-1/3 flex flex-col gap-10">
           
           {/* Calendar Widget */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] relative">
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] relative select-none">
             <div className="flex justify-between items-center mb-6 text-[#4A154B]">
-              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={24} strokeWidth={2.5}/></button>
+              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)); setDateRange([null, null]); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={24} strokeWidth={2.5}/></button>
               
               <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 font-bold text-[18px]" onClick={() => setShowMonthPicker(!showMonthPicker)}>
                 <span>{THAI_MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                 {showMonthPicker ? <ChevronDown size={20} className="rotate-180 transition-transform" /> : <ChevronDown size={20} className="transition-transform"/>}
               </div>
 
-              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={24} strokeWidth={2.5}/></button>
+              <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)); setDateRange([null, null]); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={24} strokeWidth={2.5}/></button>
             </div>
             
             <div className="grid grid-cols-7 text-center text-[13px] mb-4 font-bold text-[#4A154B]">
@@ -301,22 +358,27 @@ export default function HomePage() {
             
             <div className="grid grid-cols-7 gap-x-2 gap-y-2 text-[14px]">
               {getDaysInMonth().map((item, idx) => {
-                const isSelected = isSameDay(selectedDate, item.date);
+                const isStart = isSameDay(dateRange[0], item.date);
+                const isEnd = isSameDay(dateRange[1], item.date);
+                const isSelected = isStart || isEnd;
+                const inRange = isWithinRange(item.date);
                 const hasEvent = hasActivityOnDate(item.date);
+                
                 return (
                   <div 
                     key={idx} 
                     onClick={() => {
                       if (!item.isCurrentMonth) setCurrentDate(item.date);
-                      setSelectedDate(isSelected ? null : item.date);
-                      setPage(1);
+                      handleDateClick(item.date);
                     }}
-                    className={`relative aspect-square flex flex-col items-center justify-center font-medium cursor-pointer transition rounded-sm
-                      ${item.isCurrentMonth ? 'text-gray-800 bg-[#E5E7EB]' : 'text-gray-400 bg-gray-100/50'}
-                      ${isSelected ? '!bg-[#4A154B] !text-white' : 'hover:bg-gray-300'}`}
+                    className={`relative aspect-square flex flex-col items-center justify-center font-medium cursor-pointer transition rounded-lg
+                      ${item.isCurrentMonth ? (inRange ? 'text-[#712874]' : 'text-gray-800 bg-[#F3F4F6]') : (inRange ? 'text-[#712874]/50' : 'text-gray-400 bg-gray-50')}
+                      ${isSelected ? '!bg-[#712874] !text-white' : ''}
+                      ${inRange ? '!bg-[#F3E8FF] hover:bg-[#E9D5FF]' : 'hover:bg-gray-300'}
+                    `}
                   >
-                    <span className="mb-0.5">{item.day}</span>
-                    {hasEvent && <div className={`absolute bottom-1 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-[#FF9800]'}`}></div>}
+                    <span className="mb-0.5 relative z-10">{item.day}</span>
+                    {hasEvent && <div className={`absolute bottom-1 w-1.5 h-1.5 rounded-full z-10 ${isSelected ? 'bg-white' : 'bg-[#F59E0B]'}`}></div>}
                   </div>
                 );
               })}
@@ -327,9 +389,9 @@ export default function HomePage() {
               <div className="absolute inset-x-0 top-16 bg-white z-30 p-4 rounded-xl shadow-xl border border-gray-100 animate-fade-in-up">
                 <div className="relative flex justify-center items-center mb-4 border-b border-gray-100 pb-3">
                   <div className="flex items-center gap-4">
-                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={20}/></button>
+                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() - 1, currentDate.getMonth(), 1)); setDateRange([null, null]); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronLeft size={20}/></button>
                     <span className="font-bold text-[#4A154B] text-[16px] w-12 text-center">{currentDate.getFullYear()}</span>
-                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1)); setSelectedDate(null); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={20}/></button>
+                    <button onClick={() => { setCurrentDate(new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), 1)); setDateRange([null, null]); setPage(1); }} className="p-1 hover:bg-gray-100 rounded transition"><ChevronRight size={20}/></button>
                   </div>
                   <button onClick={() => setShowMonthPicker(false)} className="absolute right-0 text-gray-400 hover:text-red-500 p-1"><X size={18}/></button>
                 </div>
@@ -337,7 +399,7 @@ export default function HomePage() {
                   {THAI_MONTHS_SHORT.map((month, index) => (
                     <button 
                       key={month}
-                      onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), index, 1)); setShowMonthPicker(false); setSelectedDate(null); setPage(1); }}
+                      onClick={() => { setCurrentDate(new Date(currentDate.getFullYear(), index, 1)); setShowMonthPicker(false); setDateRange([null, null]); setPage(1); }}
                       className={`py-2 px-2 text-sm rounded-full transition-colors border ${currentDate.getMonth() === index ? 'bg-[#4A154B] text-white border-[#4A154B]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#4A154B]'}`}
                     >
                       {month}
