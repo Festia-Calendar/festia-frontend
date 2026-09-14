@@ -299,7 +299,6 @@ export default function HomePage() {
       
       const endDay = end.getDate();
       const endMonth = THAI_MONTHS[end.getMonth()];
-      const endYear = end.getFullYear() + 543;
 
       if (start.getTime() === end.getTime()) {
         return `กิจกรรมวันที่ ${startDay} ${startMonth} ${startYear}`;
