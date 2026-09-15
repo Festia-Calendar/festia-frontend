@@ -152,7 +152,7 @@ export default function DashboardSuperAdmin() {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        const data = await dashboardService.getDashboardData({
+        const data = await dashboardService.getAdminDashboardData({
           startDate: formatDateForAPI(dateRange[0]),
           endDate: formatDateForAPI(dateRange[1]),
           zone: selectedZone || undefined,
