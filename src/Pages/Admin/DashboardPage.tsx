@@ -194,7 +194,7 @@ export default function DashboardSuperAdmin() {
   const totalReportPages = Math.ceil(totalProvinceCount / reportRowsPerPage);
   const currentProvinceData = filteredProvinceData.slice((reportPage - 1) * reportRowsPerPage, reportPage * reportRowsPerPage);
 
-  const rowsPerPagePDF = 25;
+  const rowsPerPagePDF = 20;
   const totalPagesPDF = Math.ceil(filteredProvinceData.length / rowsPerPagePDF) || 1;
 
   useEffect(() => {
